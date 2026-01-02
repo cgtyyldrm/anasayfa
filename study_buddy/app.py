@@ -1,16 +1,23 @@
 import streamlit as st
 import pandas as pd
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import requests
 import time
 import random
+import pytz # Saat dilimi için gerekli
 
 # --- 1. Sayfa ve Stil Ayarları ---
 st.set_page_config(page_title="Study Buddy", page_icon="📚", layout="wide")
 
-# CSS: COMPACT, ZARİF VE ORTALANMIŞ GÖRÜNÜM
+# --- Türkiye Saati Ayarı (Deploy Sorunu Çözümü) ---
+def get_turkey_time():
+    tz = pytz.timezone('Turkey')
+    return datetime.now(tz).date()
+
+# CSS: DAHA GÜVENLİ VE RESPONSIVE (Mobil/Deploy Uyumlu)
 st.markdown("""
     <style>
+    /* Başlıklar */
     .main-title {
         font-size: 2.2rem !important;
         font-weight: 800;
@@ -27,58 +34,55 @@ st.markdown("""
         font-style: italic;
     }
     
-    /* TABLO İÇİ DÜZENLEMELER */
+    /* --- TABLO DÜZENLEMELERİ --- */
+    /* Sadece tablo satırlarını hedeflemek zor olduğu için genel ayarları yumuşattık */
+    div[data-testid="column"] {
+        align-items: center; /* Dikey ortalama */
+    }
+
+    /* Yazı Boyutları - Çok küçük olmasın */
     div[data-testid="column"] p {
-        font-size: 14px !important;
+        font-size: 15px !important; 
         margin-bottom: 0px !important;
     }
-    div[data-testid="column"] {
-        display: flex;
-        align-items: center;
-        min-height: 40px;
-    }
-    
-    /* BUTON VE RESİMLERİ ORTALAMA (KRİTİK KISIM) */
-    /* Resimlerin bulunduğu kapsayıcıyı ortalar */
-    div[data-testid="stImage"] {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        margin-bottom: 5px; /* Resim ile buton arası boşluk */
-    }
-    
-    /* Butonları ortalar */
-    div[data-testid="stButton"] {
-        display: flex;
-        justify-content: center;
-    }
-    
+
+    /* Butonları Güzelleştirme */
     .stButton button {
-        font-size: 12px !important;
+        font-size: 13px !important;
+        padding: 4px 12px !important;
+        border-radius: 8px !important;
         height: auto !important;
-        padding: 4px 8px !important;
         min-height: 0px !important;
-        border-radius: 6px !important;
-        line-height: 1 !important;
+        white-space: nowrap !important; /* Yazı kaymasın */
     }
-    .stButton button p {
-        white-space: nowrap !important;
-        font-size: 12px !important;
+
+    /* Avatar Resimleri */
+    img {
+        border-radius: 50%;
+        transition: transform .2s;
+        max-width: 100%; 
     }
+    img:hover {
+        transform: scale(1.1);
+    }
+
+    /* Mobilde sütunların çökmesini engellemek için minimum genişlik ayarı (Opsiyonel) */
+    @media (min-width: 640px) {
+        div[data-testid="column"] {
+            display: flex;
+            justify-content: flex-start;
+        }
+    }
+    
     .timer-font {
         font-family: 'Courier New', Courier, monospace;
         font-weight: bold;
         color: #22223b;
     }
     
-    /* Avatar Efekti */
-    img {
-        border-radius: 50%;
-        object-fit: cover; /* Resmi yuvarlağa sığdır */
-        transition: transform .2s;
-    }
-    img:hover {
-        transform: scale(1.1);
+    /* Başarı/Bilgi mesajlarını sıkılaştır */
+    div[data-testid="stAlert"] {
+        padding: 0.5rem 0.5rem !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -92,8 +96,6 @@ if "current_task_info" not in st.session_state: st.session_state.current_task_in
 if "temp_question_count" not in st.session_state: st.session_state.temp_question_count = 0
 if "authenticated_user" not in st.session_state: st.session_state.authenticated_user = None
 if "edit_mode_index" not in st.session_state: st.session_state.edit_mode_index = None
-
-# SEÇİLİ ÖĞRENCİ STATE'İ
 if "global_student_selection" not in st.session_state: st.session_state.global_student_selection = "Tümü"
 
 # --- 3. Motivasyon Sözleri ---
@@ -121,17 +123,23 @@ def login_screen():
                 password = st.text_input("Şifre", type="password")
                 
                 if st.form_submit_button("🚀 Giriş Yap", use_container_width=True):
-                    if username in st.secrets["passwords"] and \
+                    # secrets kontrolü - Hata almamak için
+                    if "passwords" in st.secrets and username in st.secrets["passwords"] and \
                        password == st.secrets["passwords"][username]:
                         st.session_state["authenticated_user"] = username
                         st.toast(f"Hoş geldin {username}!", icon="👋")
                         time.sleep(0.5)
                         st.rerun()
                     else:
-                        st.error("Hatalı giriş bilgileri.")
+                        st.error("Hatalı giriş bilgileri veya Secrets ayarlanmamış.")
 
 # --- 5. Veri İşlemleri (API) ---
+# Deploy hatasını önlemek için önbellek (Cache) ekleyebiliriz ama anlık veri için şimdilik kaldırıyoruz.
 def get_data():
+    if "connections" not in st.secrets:
+        st.error("Secrets ayarları bulunamadı! Lütfen Streamlit Cloud paneline secrets ekleyin.")
+        return pd.DataFrame()
+
     url = st.secrets["connections"]["webapp_url"]
     try:
         response = requests.get(url)
@@ -148,7 +156,10 @@ def get_data():
             df["Tarih"] = pd.to_datetime(df["Tarih"], errors='coerce').dt.date
             return df
         return pd.DataFrame()
-    except: return pd.DataFrame()
+    except Exception as e: 
+        # Hata ayıklama için (Deploy'da loglarda görünür)
+        print(f"Veri çekme hatası: {e}")
+        return pd.DataFrame()
 
 def add_task(tarih, kullanıcı, ders, konu):
     url = st.secrets["connections"]["webapp_url"]
@@ -194,12 +205,10 @@ def main_app():
     user = st.session_state["authenticated_user"]
     parents = ["Baba", "Anne"]
     
-    # --- SIDEBAR (Menü ve Resim Yükleme) ---
+    # --- SIDEBAR ---
     with st.sidebar:
         st.title(f"Profil: {user}")
         
-        # Kullanıcının kendi resmi (Admin veya Öğrenci)
-        # Burası sabit kalabilir veya buraya da yükleme eklenebilir
         if user == "Berru": st.image("https://cdn-icons-png.flaticon.com/512/4322/4322991.png", width=80)
         elif user == "Ela": st.image("https://cdn-icons-png.flaticon.com/512/4322/4322992.png", width=80)
         elif user == "Anne": st.image("https://cdn-icons-png.flaticon.com/512/2942/2942802.png", width=80)
@@ -207,7 +216,6 @@ def main_app():
             
         st.write("---")
         
-        # --- PROFİL FOTOĞRAFI YÜKLEME (Sadece Ebeveynler için) ---
         if user in parents:
             with st.expander("📸 Profil Fotoğrafı Ayarla"):
                 st.caption("Berru için resim yükle:")
@@ -224,7 +232,7 @@ def main_app():
             st.session_state["authenticated_user"] = None
             st.rerun()
 
-    # --- ODAK EKRANI (DEĞİŞMEDİ) ---
+    # --- ODAK EKRANI ---
     if st.session_state.timer_active:
         c_focus_1, c_focus_2, c_focus_3 = st.columns([1, 2, 1])
         with c_focus_2:
@@ -284,45 +292,40 @@ def main_app():
     # --- ANA SAYFA ---
     st.markdown('<div class="main-title">Study Buddy</div>', unsafe_allow_html=True)
     df = get_data()
-    today = date.today()
+    # BURASI KRİTİK: Sunucu saatini değil, Türkiye saatini alıyoruz.
+    today = get_turkey_time()
 
-    # --- GÖRSEL ÖĞRENCİ SEÇİMİ (AVATARLAR) ---
+    # --- GÖRSEL ÖĞRENCİ SEÇİMİ ---
     active_student_filter = user 
     
     if user in parents:
-        # Resim Kaynaklarını Belirle (Yüklenen varsa onu kullan, yoksa varsayılan)
         img_berru_src = st.session_state.get("img_berru", "https://cdn-icons-png.flaticon.com/512/4322/4322991.png")
         img_ela_src = st.session_state.get("img_ela", "https://cdn-icons-png.flaticon.com/512/4322/4322992.png")
-        img_all_src = "https://cdn-icons-png.flaticon.com/512/681/681494.png" # Grup ikonu sabit
+        img_all_src = "https://cdn-icons-png.flaticon.com/512/681/681494.png"
 
-        # Seçim Butonları (Ortalanmış)
         c_space1, c_sel_all, c_sel_berru, c_sel_ela, c_space2 = st.columns([2, 1, 1, 1, 2])
         
-        # 1. TÜMÜ
         with c_sel_all:
-            st.image(img_all_src, width=70) # use_column_width=False, width=70 yeterli
+            st.image(img_all_src, width=60)
             btn_type = "primary" if st.session_state.global_student_selection == "Tümü" else "secondary"
             if st.button("Tümü", key="btn_all", type=btn_type, use_container_width=True):
                 st.session_state.global_student_selection = "Tümü"
                 st.rerun()
 
-        # 2. BERRU
         with c_sel_berru:
-            st.image(img_berru_src, width=70)
+            st.image(img_berru_src, width=60)
             btn_type = "primary" if st.session_state.global_student_selection == "Berru" else "secondary"
             if st.button("Berru", key="btn_berru", type=btn_type, use_container_width=True):
                 st.session_state.global_student_selection = "Berru"
                 st.rerun()
                 
-        # 3. ELA
         with c_sel_ela:
-            st.image(img_ela_src, width=70)
+            st.image(img_ela_src, width=60)
             btn_type = "primary" if st.session_state.global_student_selection == "Ela" else "secondary"
             if st.button("Ela", key="btn_ela", type=btn_type, use_container_width=True):
                 st.session_state.global_student_selection = "Ela"
                 st.rerun()
         
-        # Filtreyi state'den al
         if st.session_state.global_student_selection == "Tümü":
             active_student_filter = None
         else:
@@ -334,7 +337,7 @@ def main_app():
         # VERİYİ FİLTRELE
         filtered_df = df if active_student_filter is None else df[df["Kullanıcı"] == active_student_filter]
 
-        # --- DASHBOARD (ÖZET) ---
+        # --- DASHBOARD ---
         period = st.radio("", ["Günlük", "Haftalık", "Aylık"], horizontal=True, label_visibility="collapsed")
         
         dashboard_data = pd.DataFrame()
@@ -372,7 +375,7 @@ def main_app():
         with tab1:
             c_filter1, c_filter2 = st.columns([1, 4])
             with c_filter1:
-                selected_date = st.date_input("Tarih Seçin:", value=date.today())
+                selected_date = st.date_input("Tarih Seçin:", value=today)
             
             with c_filter2:
                  student_title = active_student_filter if active_student_filter else "Tüm Öğrenciler"
@@ -381,7 +384,7 @@ def main_app():
             table_data = filtered_df[filtered_df["Tarih"] == selected_date]
             
             if not table_data.empty:
-                col_ratios = [0.4, 1, 1.3, 3.5, 1.2, 0.7, 0.6, 1.8]
+                col_ratios = [0.4, 0.8, 1.2, 3.0, 1.2, 0.8, 0.6, 1.5]
                 header_cols = st.columns(col_ratios)
                 titles = ["#", "Öğrenci", "Ders", "Konu", "Durum", "Süre", "Soru", "İşlemler"]
                 
@@ -450,13 +453,13 @@ def main_app():
                         
                         st.divider() 
             else:
-                st.info(f"Seçilen kriterlere uygun görev yok.", icon=":material/info:")
+                st.info(f"{selected_date.strftime('%d.%m.%Y')} tarihinde kayıtlı görev yok.", icon=":material/info:")
 
         with tab2:
             with st.container(border=True):
                 with st.form("new_task"):
                     c1, c2 = st.columns(2)
-                    tarih_inp = c1.date_input("Tarih", date.today())
+                    tarih_inp = c1.date_input("Tarih", today)
                     
                     default_student_idx = 0
                     student_options = ["Berru", "Ela"]
