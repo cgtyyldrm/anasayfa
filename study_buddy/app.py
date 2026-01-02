@@ -6,13 +6,13 @@ import time
 import random
 
 # --- 1. Sayfa ve Stil Ayarları ---
-st.set_page_config(page_title="Study Buddy", page_icon="📚", layout="centered")
+st.set_page_config(page_title="Study Buddy", page_icon="📚", layout="wide")
 
-# CSS: Modern ve Temiz Görünüm
+# CSS: COMPACT, ZARİF VE ORTALANMIŞ GÖRÜNÜM
 st.markdown("""
     <style>
     .main-title {
-        font-size: 2.5rem !important;
+        font-size: 2.2rem !important;
         font-weight: 800;
         color: #4a4e69;
         text-align: center;
@@ -20,29 +20,65 @@ st.markdown("""
         font-family: 'Helvetica Neue', sans-serif;
     }
     .sub-title {
-        font-size: 1rem;
+        font-size: 0.9rem;
         color: #9a8c98;
         text-align: center;
-        margin-bottom: 25px;
+        margin-bottom: 20px;
         font-style: italic;
+    }
+    
+    /* TABLO İÇİ DÜZENLEMELER */
+    div[data-testid="column"] p {
+        font-size: 14px !important;
+        margin-bottom: 0px !important;
+    }
+    div[data-testid="column"] {
+        display: flex;
+        align-items: center;
+        min-height: 40px;
+    }
+    
+    /* BUTON VE RESİMLERİ ORTALAMA (KRİTİK KISIM) */
+    /* Resimlerin bulunduğu kapsayıcıyı ortalar */
+    div[data-testid="stImage"] {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 5px; /* Resim ile buton arası boşluk */
+    }
+    
+    /* Butonları ortalar */
+    div[data-testid="stButton"] {
+        display: flex;
+        justify-content: center;
+    }
+    
+    .stButton button {
+        font-size: 12px !important;
+        height: auto !important;
+        padding: 4px 8px !important;
+        min-height: 0px !important;
+        border-radius: 6px !important;
+        line-height: 1 !important;
+    }
+    .stButton button p {
+        white-space: nowrap !important;
+        font-size: 12px !important;
     }
     .timer-font {
         font-family: 'Courier New', Courier, monospace;
         font-weight: bold;
         color: #22223b;
     }
-    .stButton>button {
-        border-radius: 12px;
-        font-weight: 600;
+    
+    /* Avatar Efekti */
+    img {
+        border-radius: 50%;
+        object-fit: cover; /* Resmi yuvarlağa sığdır */
+        transition: transform .2s;
     }
-    /* Kartların arasına boşluk */
-    div[data-testid="stVerticalBlock"] > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] {
-        gap: 0.8rem;
-    }
-    /* Başarı mesajları için */
-    .success-msg {
-        color: green;
-        font-weight: bold;
+    img:hover {
+        transform: scale(1.1);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -55,8 +91,10 @@ if "timer_running" not in st.session_state: st.session_state.timer_running = Fal
 if "current_task_info" not in st.session_state: st.session_state.current_task_info = {} 
 if "temp_question_count" not in st.session_state: st.session_state.temp_question_count = 0
 if "authenticated_user" not in st.session_state: st.session_state.authenticated_user = None
-# Düzenleme modu takibi için
 if "edit_mode_index" not in st.session_state: st.session_state.edit_mode_index = None
+
+# SEÇİLİ ÖĞRENCİ STATE'İ
+if "global_student_selection" not in st.session_state: st.session_state.global_student_selection = "Tümü"
 
 # --- 3. Motivasyon Sözleri ---
 MOTIVATION_QUOTES = [
@@ -74,7 +112,7 @@ def login_screen():
     st.markdown('<div class="main-title">📚 Study Buddy</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="sub-title">"{random.choice(MOTIVATION_QUOTES)}"</div>', unsafe_allow_html=True)
     
-    c1, c2, c3 = st.columns([1, 2, 1])
+    c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
         with st.container(border=True):
             st.subheader("Giriş Yap")
@@ -104,20 +142,17 @@ def get_data():
             for col in expected:
                 if col not in df.columns: df[col] = ""
             
-            # Veri Tiplerini Düzenle
             df["Sure"] = pd.to_numeric(df["Sure"], errors='coerce').fillna(0).astype(int)
             df["SoruSayisi"] = pd.to_numeric(df["SoruSayisi"], errors='coerce').fillna(0).astype(int)
-            # rowIndex kritik, sayı olduğundan emin olalım
             df["rowIndex"] = pd.to_numeric(df["rowIndex"], errors='coerce').fillna(-1).astype(int)
-            # Tarih
             df["Tarih"] = pd.to_datetime(df["Tarih"], errors='coerce').dt.date
             return df
         return pd.DataFrame()
     except: return pd.DataFrame()
 
-def add_task(tarih, kullanıcı, ders, konu, notlar):
+def add_task(tarih, kullanıcı, ders, konu):
     url = st.secrets["connections"]["webapp_url"]
-    payload = {"action": "add", "tarih": str(tarih), "kullanici": kullanıcı, "ders": ders, "konu": konu, "durum": "Planlandı", "notlar": notlar, "sure": 0, "soru_sayisi": 0}
+    payload = {"action": "add", "tarih": str(tarih), "kullanici": kullanıcı, "ders": ders, "konu": konu, "durum": "Planlandı", "notlar": "", "sure": 0, "soru_sayisi": 0}
     try: requests.post(url, json=payload)
     except: pass
 
@@ -127,9 +162,9 @@ def delete_task(row_index):
     try: requests.post(url, json=payload)
     except: pass
 
-def edit_task(row_index, ders, konu, notlar):
+def edit_task(row_index, ders, konu):
     url = st.secrets["connections"]["webapp_url"]
-    payload = {"action": "edit", "rowIndex": row_index, "ders": ders, "konu": konu, "notlar": notlar}
+    payload = {"action": "edit", "rowIndex": row_index, "ders": ders, "konu": konu, "notlar": ""}
     try: requests.post(url, json=payload)
     except: pass
 
@@ -139,7 +174,6 @@ def update_task_progress(index, status, sure_saniye, soru_sayisi=0):
     try: requests.post(url, json=payload)
     except: pass
 
-# --- 6. Yardımcı Fonksiyonlar ---
 def format_timer_display(seconds):
     mins, secs = divmod(int(seconds), 60)
     hours, mins = divmod(mins, 60)
@@ -160,187 +194,281 @@ def main_app():
     user = st.session_state["authenticated_user"]
     parents = ["Baba", "Anne"]
     
-    # Menü (Sidebar)
+    # --- SIDEBAR (Menü ve Resim Yükleme) ---
     with st.sidebar:
         st.title(f"Profil: {user}")
+        
+        # Kullanıcının kendi resmi (Admin veya Öğrenci)
+        # Burası sabit kalabilir veya buraya da yükleme eklenebilir
         if user == "Berru": st.image("https://cdn-icons-png.flaticon.com/512/4322/4322991.png", width=80)
         elif user == "Ela": st.image("https://cdn-icons-png.flaticon.com/512/4322/4322992.png", width=80)
         elif user == "Anne": st.image("https://cdn-icons-png.flaticon.com/512/2942/2942802.png", width=80)
         else: st.image("https://cdn-icons-png.flaticon.com/512/2942/2942813.png", width=80)
             
         st.write("---")
+        
+        # --- PROFİL FOTOĞRAFI YÜKLEME (Sadece Ebeveynler için) ---
+        if user in parents:
+            with st.expander("📸 Profil Fotoğrafı Ayarla"):
+                st.caption("Berru için resim yükle:")
+                uploaded_berru = st.file_uploader("Berru", type=["png", "jpg", "jpeg"], label_visibility="collapsed", key="up_berru")
+                if uploaded_berru: st.session_state["img_berru"] = uploaded_berru
+                
+                st.write("")
+                st.caption("Ela için resim yükle:")
+                uploaded_ela = st.file_uploader("Ela", type=["png", "jpg", "jpeg"], label_visibility="collapsed", key="up_ela")
+                if uploaded_ela: st.session_state["img_ela"] = uploaded_ela
+
+        st.write("---")
         if st.button("Çıkış Yap", use_container_width=True):
             st.session_state["authenticated_user"] = None
             st.rerun()
 
-    # --- KRONOMETRE MODU (ODAK EKRANI) ---
+    # --- ODAK EKRANI (DEĞİŞMEDİ) ---
     if st.session_state.timer_active:
-        task = st.session_state.current_task_info
-        st.markdown(f"<div style='text-align:center; font-size: 2rem; font-weight:bold;'>🎯 {task['ders']}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='text-align:center; color:gray;'>{task['konu']}</div>", unsafe_allow_html=True)
-        st.divider()
+        c_focus_1, c_focus_2, c_focus_3 = st.columns([1, 2, 1])
+        with c_focus_2:
+            task = st.session_state.current_task_info
+            st.markdown(f"<div style='text-align:center; font-size: 2rem; font-weight:bold;'>🎯 {task['ders']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='text-align:center; color:gray;'>{task['konu']}</div>", unsafe_allow_html=True)
+            st.divider()
 
-        current_time = time.time()
-        elapsed = st.session_state.timer_accumulated + (current_time - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
-        
-        # Dev Sayaç
-        st.markdown(f"<div style='text-align: center; font-size: 80px; color: #4CAF50;' class='timer-font'>{format_timer_display(elapsed)}</div>", unsafe_allow_html=True)
+            current_time = time.time()
+            elapsed = st.session_state.timer_accumulated + (current_time - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
+            
+            st.markdown(f"<div style='text-align: center; font-size: 80px; color: #4CAF50;' class='timer-font'>{format_timer_display(elapsed)}</div>", unsafe_allow_html=True)
 
-        # Soru Girişi
-        c1, c2, c3 = st.columns([1, 2, 1])
-        with c2:
+            c_sub1, c_sub2, c_sub3 = st.columns([1, 2, 1])
+            with c_sub2:
+                st.write("")
+                soru_input = st.number_input("✏️ Çözülen Soru", min_value=0, step=1, value=st.session_state.temp_question_count)
+                st.session_state.temp_question_count = soru_input
+
             st.write("")
-            soru_input = st.number_input("✏️ Çözülen Soru", min_value=0, step=1, value=st.session_state.temp_question_count)
-            st.session_state.temp_question_count = soru_input
-
-        st.write("")
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            if st.session_state.timer_running:
-                if st.button("⏸️ Mola Ver", use_container_width=True):
-                    st.session_state.timer_accumulated += (time.time() - st.session_state.timer_start_time)
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.session_state.timer_running:
+                    if st.button("⏸️ Mola Ver", use_container_width=True):
+                        st.session_state.timer_accumulated += (time.time() - st.session_state.timer_start_time)
+                        st.session_state.timer_running = False
+                        st.rerun()
+                else:
+                    if st.button("▶️ Devam Et", type="primary", use_container_width=True):
+                        st.session_state.timer_start_time = time.time()
+                        st.session_state.timer_running = True
+                        st.rerun()
+            
+            with col_btn2:
+                if st.button("🏁 Bitir", type="primary", use_container_width=True):
+                    final_sec = st.session_state.timer_accumulated + (time.time() - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
+                    update_task_progress(task['index'], "Tamamlandı", int(final_sec), st.session_state.temp_question_count)
+                    st.session_state.timer_active = False
                     st.session_state.timer_running = False
-                    st.rerun()
-            else:
-                if st.button("▶️ Devam Et", type="primary", use_container_width=True):
-                    st.session_state.timer_start_time = time.time()
-                    st.session_state.timer_running = True
-                    st.rerun()
-        
-        with col_btn2:
-            if st.button("🏁 Bitir", type="primary", use_container_width=True):
+                    st.session_state.timer_accumulated = 0
+                    st.session_state.temp_question_count = 0
+                    st.balloons(); time.sleep(1.5); st.rerun()
+
+            st.write("")
+            if st.button("💾 Kaydet ve Çık (Bitmedi)", use_container_width=True):
                 final_sec = st.session_state.timer_accumulated + (time.time() - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
-                update_task_progress(task['index'], "Tamamlandı", int(final_sec), st.session_state.temp_question_count)
+                update_task_progress(task['index'], "Beklemede", int(final_sec), st.session_state.temp_question_count)
                 st.session_state.timer_active = False
                 st.session_state.timer_running = False
                 st.session_state.timer_accumulated = 0
                 st.session_state.temp_question_count = 0
-                st.balloons(); time.sleep(1.5); st.rerun()
-
-        st.write("")
-        if st.button("💾 Kaydet ve Çık (Bitmedi)", use_container_width=True):
-            final_sec = st.session_state.timer_accumulated + (time.time() - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
-            update_task_progress(task['index'], "Beklemede", int(final_sec), st.session_state.temp_question_count)
-            st.session_state.timer_active = False
-            st.session_state.timer_running = False
-            st.session_state.timer_accumulated = 0
-            st.session_state.temp_question_count = 0
-            st.rerun()
+                st.rerun()
 
         if st.session_state.timer_running: time.sleep(1); st.rerun()
         return
 
-    # --- DASHBOARD (ÖZET EKRANI) ---
+    # --- ANA SAYFA ---
     st.markdown('<div class="main-title">Study Buddy</div>', unsafe_allow_html=True)
     df = get_data()
     today = date.today()
 
-    if not df.empty:
-        # Filtreleme
-        filter_user = None if user in parents else user
-        user_df = df[df["Kullanıcı"] == filter_user] if filter_user else df
+    # --- GÖRSEL ÖĞRENCİ SEÇİMİ (AVATARLAR) ---
+    active_student_filter = user 
+    
+    if user in parents:
+        # Resim Kaynaklarını Belirle (Yüklenen varsa onu kullan, yoksa varsayılan)
+        img_berru_src = st.session_state.get("img_berru", "https://cdn-icons-png.flaticon.com/512/4322/4322991.png")
+        img_ela_src = st.session_state.get("img_ela", "https://cdn-icons-png.flaticon.com/512/4322/4322992.png")
+        img_all_src = "https://cdn-icons-png.flaticon.com/512/681/681494.png" # Grup ikonu sabit
 
-        # Periyot Seçici
+        # Seçim Butonları (Ortalanmış)
+        c_space1, c_sel_all, c_sel_berru, c_sel_ela, c_space2 = st.columns([2, 1, 1, 1, 2])
+        
+        # 1. TÜMÜ
+        with c_sel_all:
+            st.image(img_all_src, width=70) # use_column_width=False, width=70 yeterli
+            btn_type = "primary" if st.session_state.global_student_selection == "Tümü" else "secondary"
+            if st.button("Tümü", key="btn_all", type=btn_type, use_container_width=True):
+                st.session_state.global_student_selection = "Tümü"
+                st.rerun()
+
+        # 2. BERRU
+        with c_sel_berru:
+            st.image(img_berru_src, width=70)
+            btn_type = "primary" if st.session_state.global_student_selection == "Berru" else "secondary"
+            if st.button("Berru", key="btn_berru", type=btn_type, use_container_width=True):
+                st.session_state.global_student_selection = "Berru"
+                st.rerun()
+                
+        # 3. ELA
+        with c_sel_ela:
+            st.image(img_ela_src, width=70)
+            btn_type = "primary" if st.session_state.global_student_selection == "Ela" else "secondary"
+            if st.button("Ela", key="btn_ela", type=btn_type, use_container_width=True):
+                st.session_state.global_student_selection = "Ela"
+                st.rerun()
+        
+        # Filtreyi state'den al
+        if st.session_state.global_student_selection == "Tümü":
+            active_student_filter = None
+        else:
+            active_student_filter = st.session_state.global_student_selection
+    
+    st.divider()
+
+    if not df.empty:
+        # VERİYİ FİLTRELE
+        filtered_df = df if active_student_filter is None else df[df["Kullanıcı"] == active_student_filter]
+
+        # --- DASHBOARD (ÖZET) ---
         period = st.radio("", ["Günlük", "Haftalık", "Aylık"], horizontal=True, label_visibility="collapsed")
         
-        # Dashboard Mantığı
-        filtered_df = pd.DataFrame()
+        dashboard_data = pd.DataFrame()
         if period == "Günlük":
-            filtered_df = user_df[user_df["Tarih"] == today]
+            dashboard_data = filtered_df[filtered_df["Tarih"] == today]
             metric_label = "Bugün"
         elif period == "Haftalık":
             start_week = today - timedelta(days=today.weekday())
             end_week = start_week + timedelta(days=6)
-            filtered_df = user_df[(user_df["Tarih"] >= start_week) & (user_df["Tarih"] <= end_week)]
+            dashboard_data = filtered_df[(filtered_df["Tarih"] >= start_week) & (filtered_df["Tarih"] <= end_week)]
             metric_label = "Bu Hafta"
         elif period == "Aylık":
-            filtered_df = user_df[pd.to_datetime(user_df["Tarih"]).apply(lambda x: x.month == today.month and x.year == today.year)]
+            dashboard_data = filtered_df[pd.to_datetime(filtered_df["Tarih"]).apply(lambda x: x.month == today.month and x.year == today.year)]
             metric_label = "Bu Ay"
 
-        # Metrikler
-        total_time = format_text_duration(filtered_df["Sure"].sum())
-        total_questions = filtered_df["SoruSayisi"].sum()
-        completed_count = len(filtered_df[filtered_df["Durum"] == "Tamamlandı"])
+        total_time = format_text_duration(dashboard_data["Sure"].sum())
+        total_questions = dashboard_data["SoruSayisi"].sum()
+        completed_count = len(dashboard_data[dashboard_data["Durum"] == "Tamamlandı"])
         
         c1, c2, c3 = st.columns(3)
         with c1: st.metric(f"⏱️ Süre", total_time)
         with c2: st.metric(f"✏️ Soru", total_questions)
         with c3: st.metric(f"✅ Görev", f"{completed_count} Adet")
         
-        # Grafik
-        if period != "Günlük" and not filtered_df.empty:
+        if period != "Günlük" and not dashboard_data.empty:
             with st.expander(f"📊 {metric_label} Performans Grafiği", expanded=True):
-                st.bar_chart(filtered_df.groupby("Ders")["SoruSayisi"].sum())
+                st.bar_chart(dashboard_data.groupby("Ders")["SoruSayisi"].sum())
 
     st.write("---")
 
-    # --- SEKME YAPISI ---
     if user in parents:
-        # --- ADMIN (ANNE/BABA) GÖRÜNÜMÜ ---
+        # --- ADMIN GÖRÜNÜMÜ ---
         tab1, tab2 = st.tabs(["⚙️ Görev Yönetimi", "➕ Yeni Ekle"])
         
         with tab1:
-            st.subheader("Bugünün Görevleri (Düzenle/Sil)")
-            # Admin bugünün tüm görevlerini görür
-            today_data = df[df["Tarih"] == today]
+            c_filter1, c_filter2 = st.columns([1, 4])
+            with c_filter1:
+                selected_date = st.date_input("Tarih Seçin:", value=date.today())
             
-            if not today_data.empty:
-                for idx, row in today_data.iterrows():
-                    # --- DÜZENLEME MODU ---
-                    if st.session_state.edit_mode_index == row["rowIndex"]:
+            with c_filter2:
+                 student_title = active_student_filter if active_student_filter else "Tüm Öğrenciler"
+                 st.subheader(f"{student_title} - {selected_date.strftime('%d.%m.%Y')}")
+
+            table_data = filtered_df[filtered_df["Tarih"] == selected_date]
+            
+            if not table_data.empty:
+                col_ratios = [0.4, 1, 1.3, 3.5, 1.2, 0.7, 0.6, 1.8]
+                header_cols = st.columns(col_ratios)
+                titles = ["#", "Öğrenci", "Ders", "Konu", "Durum", "Süre", "Soru", "İşlemler"]
+                
+                for col, title in zip(header_cols, titles):
+                    col.markdown(f"**{title}**")
+                
+                st.markdown("---") 
+
+                for index, row in enumerate(table_data.itertuples(), start=1):
+                    if st.session_state.edit_mode_index == row.rowIndex:
                         with st.container(border=True):
-                            st.info(f"Düzenleniyor: {row['Kullanıcı']} - {row['Ders']}")
-                            with st.form(f"edit_form_{idx}"):
-                                new_ders = st.selectbox("Ders", ["Matematik", "Fen", "Türkçe", "Sosyal", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Diğer"], index=["Matematik", "Fen", "Türkçe", "Sosyal", "İngilizce", "Diğer"].index(row["Ders"]) if row["Ders"] in ["Matematik", "Fen", "Türkçe", "Sosyal", "İngilizce", "Diğer"] else 0)
-                                new_konu = st.text_input("Konu", value=row["Konu"])
-                                new_notlar = st.text_area("Notlar", value=row["Notlar"])
+                            st.info(f"Düzenleniyor: {row.Kullanıcı} - {row.Ders}")
+                            with st.form(f"edit_form_{index}"):
+                                c_edit1, c_edit2 = st.columns(2)
+                                ders_list = ["Matematik", "Fen", "Türkçe", "Sosyal", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Diğer"]
+                                current_ders_idx = ders_list.index(row.Ders) if row.Ders in ders_list else 0
                                 
-                                c_save, c_cancel = st.columns(2)
-                                if c_save.form_submit_button("💾 Kaydet", use_container_width=True):
-                                    edit_task(row["rowIndex"], new_ders, new_konu, new_notlar)
+                                new_ders = c_edit1.selectbox("Ders", ders_list, index=current_ders_idx)
+                                new_konu = c_edit2.text_input("Konu", value=row.Konu)
+                                
+                                c_save, c_cancel = st.columns([1, 1])
+                                if c_save.form_submit_button("Kaydet", icon=":material/save:", use_container_width=True, type="primary"):
+                                    edit_task(row.rowIndex, new_ders, new_konu)
                                     st.session_state.edit_mode_index = None
-                                    st.success("Güncellendi!")
+                                    st.toast("Başarıyla Güncellendi!")
                                     time.sleep(1)
                                     st.rerun()
-                                if c_cancel.form_submit_button("İptal", use_container_width=True):
+                                if c_cancel.form_submit_button("İptal", icon=":material/close:", use_container_width=True):
                                     st.session_state.edit_mode_index = None
                                     st.rerun()
-
-                    # --- NORMAL GÖRÜNÜM (Kart) ---
+                                    
                     else:
-                        with st.container(border=True):
-                            c_info, c_ops = st.columns([4, 1])
-                            with c_info:
-                                st.markdown(f"**{row['Kullanıcı']}** | {row['Ders']} - {row['Konu']}")
-                                if row['Notlar']: st.caption(f"📌 {row['Notlar']}")
-                                st.caption(f"Durum: {row['Durum']}")
-
-                            with c_ops:
-                                # Düzenle Butonu
-                                if st.button("✏️", key=f"edit_{idx}", help="Düzenle"):
-                                    st.session_state.edit_mode_index = row["rowIndex"]
+                        row_cols = st.columns(col_ratios)
+                        row_cols[0].write(f"{index}")
+                        row_cols[1].write(row.Kullanıcı)
+                        row_cols[2].write(row.Ders)
+                        row_cols[3].write(row.Konu)
+                        
+                        with row_cols[4]:
+                            if row.Durum == "Tamamlandı":
+                                st.markdown(f"<span style='color:#2e7d32; font-weight:bold;'>Tamamlandı</span>", unsafe_allow_html=True)
+                            elif row.Durum == "Planlandı":
+                                st.markdown(f"<span style='color:#0288d1; font-weight:bold;'>Planlandı</span>", unsafe_allow_html=True)
+                            elif row.Durum == "Beklemede":
+                                st.markdown(f"<span style='color:#ed6c02; font-weight:bold;'>Beklemede</span>", unsafe_allow_html=True)
+                            elif row.Durum == "Çalışılıyor":
+                                st.markdown(f"<span style='color:#ed6c02; font-weight:bold;'>Çalışılıyor</span>", unsafe_allow_html=True)
+                            else:
+                                st.write(row.Durum)
+                        
+                        row_cols[5].write(f"{row.Sure} dk")
+                        row_cols[6].write(f"{row.SoruSayisi}")
+                        
+                        with row_cols[7]:
+                            b1, b2 = st.columns(2)
+                            with b1:
+                                if st.button("Düz.", icon=":material/edit:", key=f"btn_edit_{row.rowIndex}", use_container_width=True):
+                                    st.session_state.edit_mode_index = row.rowIndex
                                     st.rerun()
-                                
-                                # Sil Butonu
-                                if st.button("🗑️", key=f"del_{idx}", help="Sil", type="primary"):
-                                    delete_task(row["rowIndex"])
-                                    st.toast("Görev silindi!", icon="🗑️")
+                            with b2:
+                                if st.button("Sil", icon=":material/delete:", key=f"btn_del_{row.rowIndex}", type="primary", use_container_width=True):
+                                    delete_task(row.rowIndex)
+                                    st.toast("Görev silindi!", icon=":material/delete:")
                                     time.sleep(1)
                                     st.rerun()
+                        
+                        st.divider() 
             else:
-                st.info("Bugün için kayıtlı görev yok.")
+                st.info(f"Seçilen kriterlere uygun görev yok.", icon=":material/info:")
 
         with tab2:
             with st.container(border=True):
                 with st.form("new_task"):
                     c1, c2 = st.columns(2)
                     tarih_inp = c1.date_input("Tarih", date.today())
-                    kisi_inp = c1.selectbox("Öğrenci", ["Berru", "Ela"])
+                    
+                    default_student_idx = 0
+                    student_options = ["Berru", "Ela"]
+                    if active_student_filter in student_options:
+                        default_student_idx = student_options.index(active_student_filter)
+                        
+                    kisi_inp = c1.selectbox("Öğrenci", student_options, index=default_student_idx)
                     ders_inp = c2.selectbox("Ders", ["Matematik", "Fen", "Türkçe", "Sosyal", "İngilizce", "Diğer"])
                     konu_inp = c2.text_input("Konu")
-                    notlar_inp = st.text_area("Notlar")
+                    
                     if st.form_submit_button("Ekle", use_container_width=True):
-                        add_task(tarih_inp, kisi_inp, ders_inp, konu_inp, notlar_inp)
+                        add_task(tarih_inp, kisi_inp, ders_inp, konu_inp)
                         st.success("Eklendi"); time.sleep(1); st.rerun()
 
     else:
