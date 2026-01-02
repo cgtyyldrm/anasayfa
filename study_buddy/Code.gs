@@ -1,6 +1,8 @@
+// --- Code.gs ---
+
 function doGet(e) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  // Tüm veriyi string olarak alıyoruz (Format bozulmaması için)
+  // Verileri olduğu gibi (metin formatında) çekiyoruz
   var data = sheet.getDataRange().getDisplayValues();
   
   if (data.length === 0) {
@@ -13,10 +15,9 @@ function doGet(e) {
   var result = rows.map(function(row, rowIndex) {
     var obj = {};
     headers.forEach(function(header, i) {
-      obj[header] = row[i];
-      if (obj[header] === undefined) obj[header] = "";
+      obj[header] = row[i] || "";
     });
-    // Satır indeksini de gönderelim ki Python tarafı hangi satırı güncelleyeceğini bilsin
+    // Satır indeksini ekle (Python tarafında silme/düzenleme için kritik)
     obj["rowIndex"] = rowIndex; 
     return obj;
   });
@@ -41,10 +42,8 @@ function doPost(e) {
   if (lock.tryLock(10000)) {
     try {
       
-      // --- 1. YENİ GÖREV EKLEME ---
+      // 1. GÖREV EKLEME
       if (action === "add") {
-        // Artık 9 Sütunumuz var: 
-        // Tarih, Kullanıcı, Ders, Konu, Durum, Notlar, Baslangic, Sure, SoruSayisi
         sheet.appendRow([
           params.tarih, 
           params.kullanici, 
@@ -52,44 +51,51 @@ function doPost(e) {
           params.konu, 
           params.durum, 
           params.notlar,
-          "", // Baslangic (Boş)
-          0,  // Sure (0)
-          0   // SoruSayisi (0) -> BURASI YENİ EKLENDİ
+          "", // Baslangic
+          0,  // Sure
+          0   // SoruSayisi
         ]);
         return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Added"})).setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      // 2. GÖREV SİLME (YENİ)
+      else if (action === "delete") {
+        var rowIndex = parseInt(params.rowIndex);
+        var sheetRow = rowIndex + 2; // Başlık satırı nedeniyle +2
         
-      // --- 2. GÖREVE BAŞLAMA ---
-      } else if (action === "start") {
-        var rowIndex = parseInt(params.rowIndex); 
-        var sheetRow = rowIndex + 2; // Başlık satırı + 0 index düzeltmesi
+        sheet.deleteRow(sheetRow);
         
-        // 5. Sütun (Durum) -> "Çalışılıyor"
-        sheet.getRange(sheetRow, 5).setValue("Çalışılıyor");
-        
-        // 7. Sütun (Baslangic) -> Şimdiki Zaman
-        var now = new Date();
-        sheet.getRange(sheetRow, 7).setValue(now.toISOString());
-        
-        return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Started"})).setMimeType(ContentService.MimeType.JSON);
+        return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Deleted"})).setMimeType(ContentService.MimeType.JSON);
+      }
 
-      // --- 3. GÜNCELLEME / TAMAMLAMA / MOLA ---
-      } else if (action === "complete") {
-        var rowIndex = parseInt(params.rowIndex); 
-        var sheetRow = rowIndex + 2; 
+      // 3. GÖREV DÜZENLEME (YENİ)
+      else if (action === "edit") {
+        var rowIndex = parseInt(params.rowIndex);
+        var sheetRow = rowIndex + 2;
         
-        // 5. Sütun (Durum) -> Python'dan ne gelirse o ("Tamamlandı" veya "Beklemede")
-        if (params.durum) {
-          sheet.getRange(sheetRow, 5).setValue(params.durum);
-        }
+        // Sadece değiştirilebilir alanları güncelle (Ders, Konu, Notlar)
+        // C Sütunu (3) -> Ders
+        sheet.getRange(sheetRow, 3).setValue(params.ders);
+        // D Sütunu (4) -> Konu
+        sheet.getRange(sheetRow, 4).setValue(params.konu);
+        // F Sütunu (6) -> Notlar
+        sheet.getRange(sheetRow, 6).setValue(params.notlar);
         
-        // 8. Sütun (Sure) -> Saniye cinsinden günceller
-        if (params.sure !== undefined) {
-          sheet.getRange(sheetRow, 8).setValue(params.sure);
-        }
-
-        // 9. Sütun (SoruSayisi) -> BURASI YENİ EKLENDİ
-        if (params.soru_sayisi !== undefined) {
-          sheet.getRange(sheetRow, 9).setValue(params.soru_sayisi);
+        return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Edited"})).setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      // 4. BAŞLATMA / TAMAMLAMA / GÜNCELLEME
+      else if (action === "complete") {
+        var rowIndex = parseInt(params.rowIndex);
+        var sheetRow = rowIndex + 2;
+        
+        if (params.durum) sheet.getRange(sheetRow, 5).setValue(params.durum);
+        if (params.sure !== undefined) sheet.getRange(sheetRow, 8).setValue(params.sure);
+        if (params.soru_sayisi !== undefined) sheet.getRange(sheetRow, 9).setValue(params.soru_sayisi);
+        
+        // Eğer durum "Çalışılıyor" ise başlangıç zamanını at (Log amaçlı)
+        if (params.durum === "Çalışılıyor") {
+            sheet.getRange(sheetRow, 7).setValue(new Date().toISOString());
         }
         
         return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Updated"})).setMimeType(ContentService.MimeType.JSON);
@@ -101,6 +107,6 @@ function doPost(e) {
       lock.releaseLock();
     }
   } else {
-    return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Server busy"})).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Busy"})).setMimeType(ContentService.MimeType.JSON);
   }
 }

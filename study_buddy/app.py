@@ -35,9 +35,14 @@ st.markdown("""
         border-radius: 12px;
         font-weight: 600;
     }
-    /* Kartların (Container) kenarlarını yumuşat */
+    /* Kartların arasına boşluk */
     div[data-testid="stVerticalBlock"] > div[style*="flex-direction: column;"] > div[data-testid="stVerticalBlock"] {
-        gap: 0.5rem;
+        gap: 0.8rem;
+    }
+    /* Başarı mesajları için */
+    .success-msg {
+        color: green;
+        font-weight: bold;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -50,6 +55,8 @@ if "timer_running" not in st.session_state: st.session_state.timer_running = Fal
 if "current_task_info" not in st.session_state: st.session_state.current_task_info = {} 
 if "temp_question_count" not in st.session_state: st.session_state.temp_question_count = 0
 if "authenticated_user" not in st.session_state: st.session_state.authenticated_user = None
+# Düzenleme modu takibi için
+if "edit_mode_index" not in st.session_state: st.session_state.edit_mode_index = None
 
 # --- 3. Motivasyon Sözleri ---
 MOTIVATION_QUOTES = [
@@ -85,7 +92,7 @@ def login_screen():
                     else:
                         st.error("Hatalı giriş bilgileri.")
 
-# --- 5. Veri İşlemleri ---
+# --- 5. Veri İşlemleri (API) ---
 def get_data():
     url = st.secrets["connections"]["webapp_url"]
     try:
@@ -93,13 +100,16 @@ def get_data():
         if response.status_code == 200:
             data = response.json()
             df = pd.DataFrame(data)
-            expected = ["Tarih", "Kullanıcı", "Ders", "Konu", "Durum", "Notlar", "Sure", "SoruSayisi"]
+            expected = ["Tarih", "Kullanıcı", "Ders", "Konu", "Durum", "Notlar", "Sure", "SoruSayisi", "rowIndex"]
             for col in expected:
                 if col not in df.columns: df[col] = ""
             
+            # Veri Tiplerini Düzenle
             df["Sure"] = pd.to_numeric(df["Sure"], errors='coerce').fillna(0).astype(int)
             df["SoruSayisi"] = pd.to_numeric(df["SoruSayisi"], errors='coerce').fillna(0).astype(int)
-            # Tarihi datetime objesine çevir
+            # rowIndex kritik, sayı olduğundan emin olalım
+            df["rowIndex"] = pd.to_numeric(df["rowIndex"], errors='coerce').fillna(-1).astype(int)
+            # Tarih
             df["Tarih"] = pd.to_datetime(df["Tarih"], errors='coerce').dt.date
             return df
         return pd.DataFrame()
@@ -108,6 +118,18 @@ def get_data():
 def add_task(tarih, kullanıcı, ders, konu, notlar):
     url = st.secrets["connections"]["webapp_url"]
     payload = {"action": "add", "tarih": str(tarih), "kullanici": kullanıcı, "ders": ders, "konu": konu, "durum": "Planlandı", "notlar": notlar, "sure": 0, "soru_sayisi": 0}
+    try: requests.post(url, json=payload)
+    except: pass
+
+def delete_task(row_index):
+    url = st.secrets["connections"]["webapp_url"]
+    payload = {"action": "delete", "rowIndex": row_index}
+    try: requests.post(url, json=payload)
+    except: pass
+
+def edit_task(row_index, ders, konu, notlar):
+    url = st.secrets["connections"]["webapp_url"]
+    payload = {"action": "edit", "rowIndex": row_index, "ders": ders, "konu": konu, "notlar": notlar}
     try: requests.post(url, json=payload)
     except: pass
 
@@ -136,32 +158,22 @@ def format_text_duration(seconds):
 # --- 7. ANA UYGULAMA ---
 def main_app():
     user = st.session_state["authenticated_user"]
-    
-    # YÖNETİCİLER LİSTESİ (Ebeveynler)
     parents = ["Baba", "Anne"]
     
     # Menü (Sidebar)
     with st.sidebar:
         st.title(f"Profil: {user}")
-        
-        # Profil Resimleri
-        if user == "Berru": 
-            st.image("https://cdn-icons-png.flaticon.com/512/4322/4322991.png", width=80)
-        elif user == "Ela": 
-            st.image("https://cdn-icons-png.flaticon.com/512/4322/4322992.png", width=80)
-        elif user == "Anne":
-            # Anne İkonu
-            st.image("https://cdn-icons-png.flaticon.com/512/2942/2942802.png", width=80)
-        else: 
-            # Baba İkonu
-            st.image("https://cdn-icons-png.flaticon.com/512/2942/2942813.png", width=80)
+        if user == "Berru": st.image("https://cdn-icons-png.flaticon.com/512/4322/4322991.png", width=80)
+        elif user == "Ela": st.image("https://cdn-icons-png.flaticon.com/512/4322/4322992.png", width=80)
+        elif user == "Anne": st.image("https://cdn-icons-png.flaticon.com/512/2942/2942802.png", width=80)
+        else: st.image("https://cdn-icons-png.flaticon.com/512/2942/2942813.png", width=80)
             
         st.write("---")
         if st.button("Çıkış Yap", use_container_width=True):
             st.session_state["authenticated_user"] = None
             st.rerun()
 
-    # --- KRONOMETRE MODU ---
+    # --- KRONOMETRE MODU (ODAK EKRANI) ---
     if st.session_state.timer_active:
         task = st.session_state.current_task_info
         st.markdown(f"<div style='text-align:center; font-size: 2rem; font-weight:bold;'>🎯 {task['ders']}</div>", unsafe_allow_html=True)
@@ -170,9 +182,11 @@ def main_app():
 
         current_time = time.time()
         elapsed = st.session_state.timer_accumulated + (current_time - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
-
+        
+        # Dev Sayaç
         st.markdown(f"<div style='text-align: center; font-size: 80px; color: #4CAF50;' class='timer-font'>{format_timer_display(elapsed)}</div>", unsafe_allow_html=True)
 
+        # Soru Girişi
         c1, c2, c3 = st.columns([1, 2, 1])
         with c2:
             st.write("")
@@ -201,9 +215,7 @@ def main_app():
                 st.session_state.timer_running = False
                 st.session_state.timer_accumulated = 0
                 st.session_state.temp_question_count = 0
-                st.balloons()
-                time.sleep(1.5)
-                st.rerun()
+                st.balloons(); time.sleep(1.5); st.rerun()
 
         st.write("")
         if st.button("💾 Kaydet ve Çık (Bitmedi)", use_container_width=True):
@@ -224,61 +236,100 @@ def main_app():
     today = date.today()
 
     if not df.empty:
-        # Filtreleme: Eğer Ebeveyn ise (Anne/Baba) herkesi görür, Öğrenci kendini
+        # Filtreleme
         filter_user = None if user in parents else user
-        
-        if filter_user:
-            user_df = df[df["Kullanıcı"] == filter_user]
-        else:
-            user_df = df
+        user_df = df[df["Kullanıcı"] == filter_user] if filter_user else df
 
-        # --- PERİYOT SEÇİCİ ---
+        # Periyot Seçici
         period = st.radio("", ["Günlük", "Haftalık", "Aylık"], horizontal=True, label_visibility="collapsed")
         
-        # Filtreleme Mantığı
+        # Dashboard Mantığı
         filtered_df = pd.DataFrame()
-        
         if period == "Günlük":
             filtered_df = user_df[user_df["Tarih"] == today]
             metric_label = "Bugün"
-        
         elif period == "Haftalık":
             start_week = today - timedelta(days=today.weekday())
             end_week = start_week + timedelta(days=6)
             filtered_df = user_df[(user_df["Tarih"] >= start_week) & (user_df["Tarih"] <= end_week)]
             metric_label = "Bu Hafta"
-            
         elif period == "Aylık":
             filtered_df = user_df[pd.to_datetime(user_df["Tarih"]).apply(lambda x: x.month == today.month and x.year == today.year)]
             metric_label = "Bu Ay"
 
-        # Özet Hesaplamaları
+        # Metrikler
         total_time = format_text_duration(filtered_df["Sure"].sum())
         total_questions = filtered_df["SoruSayisi"].sum()
         completed_count = len(filtered_df[filtered_df["Durum"] == "Tamamlandı"])
         
-        # Dashboard Kutucukları
         c1, c2, c3 = st.columns(3)
-        with c1: st.metric(f"⏱️ Süre ({metric_label})", total_time)
-        with c2: st.metric(f"✏️ Soru ({metric_label})", total_questions)
-        with c3: st.metric(f"✅ Görev ({metric_label})", f"{completed_count} Adet")
+        with c1: st.metric(f"⏱️ Süre", total_time)
+        with c2: st.metric(f"✏️ Soru", total_questions)
+        with c3: st.metric(f"✅ Görev", f"{completed_count} Adet")
         
-        # --- GRAFİK ---
+        # Grafik
         if period != "Günlük" and not filtered_df.empty:
             with st.expander(f"📊 {metric_label} Performans Grafiği", expanded=True):
-                chart_data = filtered_df.groupby("Ders")["SoruSayisi"].sum()
-                st.bar_chart(chart_data)
+                st.bar_chart(filtered_df.groupby("Ders")["SoruSayisi"].sum())
 
     st.write("---")
 
     # --- SEKME YAPISI ---
-    # Anne veya Baba (Admin) Görünümü
     if user in parents:
-        tab1, tab2 = st.tabs(["📋 Bugünün Listesi", "➕ Görev Ekle"])
+        # --- ADMIN (ANNE/BABA) GÖRÜNÜMÜ ---
+        tab1, tab2 = st.tabs(["⚙️ Görev Yönetimi", "➕ Yeni Ekle"])
+        
         with tab1:
+            st.subheader("Bugünün Görevleri (Düzenle/Sil)")
+            # Admin bugünün tüm görevlerini görür
             today_data = df[df["Tarih"] == today]
-            if not today_data.empty: st.dataframe(today_data, use_container_width=True)
-            else: st.info("Bugün için kayıt bulunamadı.")
+            
+            if not today_data.empty:
+                for idx, row in today_data.iterrows():
+                    # --- DÜZENLEME MODU ---
+                    if st.session_state.edit_mode_index == row["rowIndex"]:
+                        with st.container(border=True):
+                            st.info(f"Düzenleniyor: {row['Kullanıcı']} - {row['Ders']}")
+                            with st.form(f"edit_form_{idx}"):
+                                new_ders = st.selectbox("Ders", ["Matematik", "Fen", "Türkçe", "Sosyal", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Diğer"], index=["Matematik", "Fen", "Türkçe", "Sosyal", "İngilizce", "Diğer"].index(row["Ders"]) if row["Ders"] in ["Matematik", "Fen", "Türkçe", "Sosyal", "İngilizce", "Diğer"] else 0)
+                                new_konu = st.text_input("Konu", value=row["Konu"])
+                                new_notlar = st.text_area("Notlar", value=row["Notlar"])
+                                
+                                c_save, c_cancel = st.columns(2)
+                                if c_save.form_submit_button("💾 Kaydet", use_container_width=True):
+                                    edit_task(row["rowIndex"], new_ders, new_konu, new_notlar)
+                                    st.session_state.edit_mode_index = None
+                                    st.success("Güncellendi!")
+                                    time.sleep(1)
+                                    st.rerun()
+                                if c_cancel.form_submit_button("İptal", use_container_width=True):
+                                    st.session_state.edit_mode_index = None
+                                    st.rerun()
+
+                    # --- NORMAL GÖRÜNÜM (Kart) ---
+                    else:
+                        with st.container(border=True):
+                            c_info, c_ops = st.columns([4, 1])
+                            with c_info:
+                                st.markdown(f"**{row['Kullanıcı']}** | {row['Ders']} - {row['Konu']}")
+                                if row['Notlar']: st.caption(f"📌 {row['Notlar']}")
+                                st.caption(f"Durum: {row['Durum']}")
+
+                            with c_ops:
+                                # Düzenle Butonu
+                                if st.button("✏️", key=f"edit_{idx}", help="Düzenle"):
+                                    st.session_state.edit_mode_index = row["rowIndex"]
+                                    st.rerun()
+                                
+                                # Sil Butonu
+                                if st.button("🗑️", key=f"del_{idx}", help="Sil", type="primary"):
+                                    delete_task(row["rowIndex"])
+                                    st.toast("Görev silindi!", icon="🗑️")
+                                    time.sleep(1)
+                                    st.rerun()
+            else:
+                st.info("Bugün için kayıtlı görev yok.")
+
         with tab2:
             with st.container(border=True):
                 with st.form("new_task"):
@@ -292,8 +343,8 @@ def main_app():
                         add_task(tarih_inp, kisi_inp, ders_inp, konu_inp, notlar_inp)
                         st.success("Eklendi"); time.sleep(1); st.rerun()
 
-    # Öğrenci Görünümü
     else:
+        # --- ÖĞRENCİ GÖRÜNÜMÜ ---
         tab1, tab2 = st.tabs(["📝 Görevlerim", "📈 İstatistiklerim"])
         with tab1:
             my_tasks = df[(df["Kullanıcı"] == user) & (df["Tarih"] == today)].copy()
@@ -305,10 +356,8 @@ def main_app():
                 for idx, row in my_tasks.iterrows():
                     with st.container(border=True):
                         c_icon, c_info, c_act = st.columns([1, 4, 2])
-                        
                         icon = "✅" if row["Durum"] == "Tamamlandı" else ("⏸️" if row["Durum"] == "Beklemede" else "📌")
                         c_icon.markdown(f"<div style='font-size:28px; text-align:center;'>{icon}</div>", unsafe_allow_html=True)
-                        
                         with c_info:
                             st.markdown(f"**{row['Ders']}**")
                             st.write(f"{row['Konu']}")
@@ -316,7 +365,6 @@ def main_app():
                             if row["Sure"] > 0: inf.append(f"⏱️ {format_text_duration(row['Sure'])}")
                             if row["SoruSayisi"] > 0: inf.append(f"✏️ {row['SoruSayisi']}")
                             if inf: st.caption(" | ".join(inf))
-                        
                         with c_act:
                             if row["Durum"] != "Tamamlandı":
                                 btn_txt = "DEVAM ET" if row["Sure"] > 0 else "BAŞLA"
@@ -327,8 +375,8 @@ def main_app():
                                     st.session_state.timer_start_time = time.time()
                                     st.session_state.timer_accumulated = row["Sure"]
                                     st.session_state.temp_question_count = int(row["SoruSayisi"])
-                                    st.session_state.current_task_info = {"index": idx, "ders": row["Ders"], "konu": row["Konu"]}
-                                    update_task_progress(idx, "Çalışılıyor", row["Sure"], row["SoruSayisi"])
+                                    st.session_state.current_task_info = {"index": row["rowIndex"], "ders": row["Ders"], "konu": row["Konu"]}
+                                    update_task_progress(row["rowIndex"], "Çalışılıyor", row["Sure"], row["SoruSayisi"])
                                     st.rerun()
                             else:
                                 st.button("Tamamlandı", disabled=True, key=f"d_{idx}", use_container_width=True)
