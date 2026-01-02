@@ -137,12 +137,25 @@ def format_text_duration(seconds):
 def main_app():
     user = st.session_state["authenticated_user"]
     
+    # YÖNETİCİLER LİSTESİ (Ebeveynler)
+    parents = ["Baba", "Anne"]
+    
     # Menü (Sidebar)
     with st.sidebar:
         st.title(f"Profil: {user}")
-        if user == "Berru": st.image("https://cdn-icons-png.flaticon.com/512/4322/4322991.png", width=80)
-        elif user == "Ela": st.image("https://cdn-icons-png.flaticon.com/512/4322/4322992.png", width=80)
-        else: st.image("https://cdn-icons-png.flaticon.com/512/2942/2942813.png", width=80)
+        
+        # Profil Resimleri
+        if user == "Berru": 
+            st.image("https://cdn-icons-png.flaticon.com/512/4322/4322991.png", width=80)
+        elif user == "Ela": 
+            st.image("https://cdn-icons-png.flaticon.com/512/4322/4322992.png", width=80)
+        elif user == "Anne":
+            # Anne İkonu
+            st.image("https://cdn-icons-png.flaticon.com/512/2942/2942802.png", width=80)
+        else: 
+            # Baba İkonu
+            st.image("https://cdn-icons-png.flaticon.com/512/2942/2942813.png", width=80)
+            
         st.write("---")
         if st.button("Çıkış Yap", use_container_width=True):
             st.session_state["authenticated_user"] = None
@@ -211,15 +224,15 @@ def main_app():
     today = date.today()
 
     if not df.empty:
-        # Filtreleme: Baba herkesi görür, Öğrenci kendini
-        filter_user = None if user == "Baba" else user
+        # Filtreleme: Eğer Ebeveyn ise (Anne/Baba) herkesi görür, Öğrenci kendini
+        filter_user = None if user in parents else user
+        
         if filter_user:
             user_df = df[df["Kullanıcı"] == filter_user]
         else:
             user_df = df
 
         # --- PERİYOT SEÇİCİ ---
-        # Burası yeni eklenen kısım!
         period = st.radio("", ["Günlük", "Haftalık", "Aylık"], horizontal=True, label_visibility="collapsed")
         
         # Filtreleme Mantığı
@@ -230,14 +243,12 @@ def main_app():
             metric_label = "Bugün"
         
         elif period == "Haftalık":
-            # Bu haftanın başı (Pazartesi) ve sonu
             start_week = today - timedelta(days=today.weekday())
             end_week = start_week + timedelta(days=6)
             filtered_df = user_df[(user_df["Tarih"] >= start_week) & (user_df["Tarih"] <= end_week)]
             metric_label = "Bu Hafta"
             
         elif period == "Aylık":
-            # Bu ayın verileri
             filtered_df = user_df[pd.to_datetime(user_df["Tarih"]).apply(lambda x: x.month == today.month and x.year == today.year)]
             metric_label = "Bu Ay"
 
@@ -252,20 +263,17 @@ def main_app():
         with c2: st.metric(f"✏️ Soru ({metric_label})", total_questions)
         with c3: st.metric(f"✅ Görev ({metric_label})", f"{completed_count} Adet")
         
-        # --- GRAFİK (OPSİYONEL GÖRSELLİK) ---
-        # Eğer haftalık veya aylıktaysa basit bir grafik gösterelim
+        # --- GRAFİK ---
         if period != "Günlük" and not filtered_df.empty:
             with st.expander(f"📊 {metric_label} Performans Grafiği", expanded=True):
-                # Ders bazlı soru dağılımı
                 chart_data = filtered_df.groupby("Ders")["SoruSayisi"].sum()
                 st.bar_chart(chart_data)
 
     st.write("---")
 
     # --- SEKME YAPISI ---
-    # Buradan sonrası aynı, sadece veri kaynağı 'df' genel
-    
-    if user == "Baba":
+    # Anne veya Baba (Admin) Görünümü
+    if user in parents:
         tab1, tab2 = st.tabs(["📋 Bugünün Listesi", "➕ Görev Ekle"])
         with tab1:
             today_data = df[df["Tarih"] == today]
@@ -284,10 +292,10 @@ def main_app():
                         add_task(tarih_inp, kisi_inp, ders_inp, konu_inp, notlar_inp)
                         st.success("Eklendi"); time.sleep(1); st.rerun()
 
+    # Öğrenci Görünümü
     else:
         tab1, tab2 = st.tabs(["📝 Görevlerim", "📈 İstatistiklerim"])
         with tab1:
-            # Sadece bugünün planı
             my_tasks = df[(df["Kullanıcı"] == user) & (df["Tarih"] == today)].copy()
             status_map = {"Çalışılıyor": 0, "Beklemede": 0, "Planlandı": 1, "Tamamlandı": 2}
             my_tasks["sort"] = my_tasks["Durum"].map(status_map).fillna(1)
@@ -329,7 +337,6 @@ def main_app():
 
         with tab2:
             st.subheader("Aylık Başarı Tablosu")
-            # Basit bir skor tablosu
             monthly_data = df[(df["Kullanıcı"] == user) & (pd.to_datetime(df["Tarih"]).dt.month == today.month)]
             if not monthly_data.empty:
                 chart_data = monthly_data.groupby("Tarih")["SoruSayisi"].sum()
