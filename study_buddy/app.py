@@ -4,20 +4,22 @@ from datetime import date, timedelta, datetime
 import requests
 import time
 import random
-import pytz # Saat dilimi için gerekli
+import pytz # requirements.txt dosyasına eklemeyi unutma
 
 # --- 1. Sayfa ve Stil Ayarları ---
 st.set_page_config(page_title="Study Buddy", page_icon="📚", layout="wide")
 
-# --- Türkiye Saati Ayarı (Deploy Sorunu Çözümü) ---
+# --- Türkiye Saati Ayarı ---
 def get_turkey_time():
-    tz = pytz.timezone('Turkey')
-    return datetime.now(tz).date()
+    try:
+        tz = pytz.timezone('Turkey')
+        return datetime.now(tz).date()
+    except:
+        return date.today() # Hata olursa sunucu saatini al
 
-# CSS: DAHA GÜVENLİ VE RESPONSIVE (Mobil/Deploy Uyumlu)
+# CSS: GÜVENLİ VE RESPONSIVE GÖRÜNÜM
 st.markdown("""
     <style>
-    /* Başlıklar */
     .main-title {
         font-size: 2.2rem !important;
         font-weight: 800;
@@ -34,29 +36,26 @@ st.markdown("""
         font-style: italic;
     }
     
-    /* --- TABLO DÜZENLEMELERİ --- */
-    /* Sadece tablo satırlarını hedeflemek zor olduğu için genel ayarları yumuşattık */
+    /* Tablo Hizalama */
     div[data-testid="column"] {
-        align-items: center; /* Dikey ortalama */
+        align-items: center;
     }
-
-    /* Yazı Boyutları - Çok küçük olmasın */
     div[data-testid="column"] p {
         font-size: 15px !important; 
         margin-bottom: 0px !important;
     }
 
-    /* Butonları Güzelleştirme */
+    /* Butonlar */
     .stButton button {
         font-size: 13px !important;
         padding: 4px 12px !important;
         border-radius: 8px !important;
         height: auto !important;
         min-height: 0px !important;
-        white-space: nowrap !important; /* Yazı kaymasın */
+        white-space: nowrap !important;
     }
 
-    /* Avatar Resimleri */
+    /* Avatarlar */
     img {
         border-radius: 50%;
         transition: transform .2s;
@@ -66,7 +65,6 @@ st.markdown("""
         transform: scale(1.1);
     }
 
-    /* Mobilde sütunların çökmesini engellemek için minimum genişlik ayarı (Opsiyonel) */
     @media (min-width: 640px) {
         div[data-testid="column"] {
             display: flex;
@@ -79,8 +77,6 @@ st.markdown("""
         font-weight: bold;
         color: #22223b;
     }
-    
-    /* Başarı/Bilgi mesajlarını sıkılaştır */
     div[data-testid="stAlert"] {
         padding: 0.5rem 0.5rem !important;
     }
@@ -123,7 +119,6 @@ def login_screen():
                 password = st.text_input("Şifre", type="password")
                 
                 if st.form_submit_button("🚀 Giriş Yap", use_container_width=True):
-                    # secrets kontrolü - Hata almamak için
                     if "passwords" in st.secrets and username in st.secrets["passwords"] and \
                        password == st.secrets["passwords"][username]:
                         st.session_state["authenticated_user"] = username
@@ -133,11 +128,10 @@ def login_screen():
                     else:
                         st.error("Hatalı giriş bilgileri veya Secrets ayarlanmamış.")
 
-# --- 5. Veri İşlemleri (API) ---
-# Deploy hatasını önlemek için önbellek (Cache) ekleyebiliriz ama anlık veri için şimdilik kaldırıyoruz.
+# --- 5. Veri İşlemleri (API - DÜZELTİLMİŞ) ---
 def get_data():
     if "connections" not in st.secrets:
-        st.error("Secrets ayarları bulunamadı! Lütfen Streamlit Cloud paneline secrets ekleyin.")
+        st.error("Secrets ayarları bulunamadı!")
         return pd.DataFrame()
 
     url = st.secrets["connections"]["webapp_url"]
@@ -146,19 +140,35 @@ def get_data():
         if response.status_code == 200:
             data = response.json()
             df = pd.DataFrame(data)
+            
+            # --- KRİTİK DÜZELTME: Sütun İsimlerini Standartlaştır ---
+            # Sheet'ten gelen Türkçe/Boşluklu isimleri kodun anladığı hale çeviriyoruz
+            rename_map = {
+                "Süre": "Sure",
+                "Süre (dk)": "Sure",
+                "Soru Sayısı": "SoruSayisi",
+                "Soru Sayisi": "SoruSayisi",
+                "Soru": "SoruSayisi"
+            }
+            df.rename(columns=rename_map, inplace=True)
+            # -------------------------------------------------------
+
             expected = ["Tarih", "Kullanıcı", "Ders", "Konu", "Durum", "Notlar", "Sure", "SoruSayisi", "rowIndex"]
             for col in expected:
                 if col not in df.columns: df[col] = ""
             
+            # Sayısal çevrimlerde hata olursa 0 kabul et
             df["Sure"] = pd.to_numeric(df["Sure"], errors='coerce').fillna(0).astype(int)
             df["SoruSayisi"] = pd.to_numeric(df["SoruSayisi"], errors='coerce').fillna(0).astype(int)
             df["rowIndex"] = pd.to_numeric(df["rowIndex"], errors='coerce').fillna(-1).astype(int)
+            
+            # Tarih dönüşümü
             df["Tarih"] = pd.to_datetime(df["Tarih"], errors='coerce').dt.date
+            
             return df
         return pd.DataFrame()
     except Exception as e: 
-        # Hata ayıklama için (Deploy'da loglarda görünür)
-        print(f"Veri çekme hatası: {e}")
+        print(f"Hata: {e}")
         return pd.DataFrame()
 
 def add_task(tarih, kullanıcı, ders, konu):
@@ -173,9 +183,9 @@ def delete_task(row_index):
     try: requests.post(url, json=payload)
     except: pass
 
-def edit_task(row_index, ders, konu):
+def edit_task(row_index, tarih, ders, konu):
     url = st.secrets["connections"]["webapp_url"]
-    payload = {"action": "edit", "rowIndex": row_index, "ders": ders, "konu": konu, "notlar": ""}
+    payload = {"action": "edit", "rowIndex": row_index, "tarih": str(tarih), "ders": ders, "konu": konu, "notlar": ""}
     try: requests.post(url, json=payload)
     except: pass
 
@@ -205,27 +215,29 @@ def main_app():
     user = st.session_state["authenticated_user"]
     parents = ["Baba", "Anne"]
     
-    # --- SIDEBAR ---
     with st.sidebar:
         st.title(f"Profil: {user}")
         
-        if user == "Berru": st.image("https://cdn-icons-png.flaticon.com/512/4322/4322991.png", width=80)
-        elif user == "Ela": st.image("https://cdn-icons-png.flaticon.com/512/4322/4322992.png", width=80)
+        current_berru_img = st.session_state.get("img_berru", "https://cdn-icons-png.flaticon.com/512/4322/4322991.png")
+        current_ela_img = st.session_state.get("img_ela", "https://cdn-icons-png.flaticon.com/512/4322/4322992.png")
+        
+        if user == "Berru": st.image(current_berru_img, width=80)
+        elif user == "Ela": st.image(current_ela_img, width=80)
         elif user == "Anne": st.image("https://cdn-icons-png.flaticon.com/512/2942/2942802.png", width=80)
         else: st.image("https://cdn-icons-png.flaticon.com/512/2942/2942813.png", width=80)
             
         st.write("---")
         
         if user in parents:
-            with st.expander("📸 Profil Fotoğrafı Ayarla"):
-                st.caption("Berru için resim yükle:")
-                uploaded_berru = st.file_uploader("Berru", type=["png", "jpg", "jpeg"], label_visibility="collapsed", key="up_berru")
-                if uploaded_berru: st.session_state["img_berru"] = uploaded_berru
+            with st.expander("📸 Profil Fotoğrafı Linki"):
+                st.caption("Berru için resim adresi (URL):")
+                url_berru = st.text_input("Berru Link", value="", label_visibility="collapsed", key="url_berru_in")
+                if url_berru: st.session_state["img_berru"] = url_berru
                 
                 st.write("")
-                st.caption("Ela için resim yükle:")
-                uploaded_ela = st.file_uploader("Ela", type=["png", "jpg", "jpeg"], label_visibility="collapsed", key="up_ela")
-                if uploaded_ela: st.session_state["img_ela"] = uploaded_ela
+                st.caption("Ela için resim adresi (URL):")
+                url_ela = st.text_input("Ela Link", value="", label_visibility="collapsed", key="url_ela_in")
+                if url_ela: st.session_state["img_ela"] = url_ela
 
         st.write("---")
         if st.button("Çıkış Yap", use_container_width=True):
@@ -292,10 +304,9 @@ def main_app():
     # --- ANA SAYFA ---
     st.markdown('<div class="main-title">Study Buddy</div>', unsafe_allow_html=True)
     df = get_data()
-    # BURASI KRİTİK: Sunucu saatini değil, Türkiye saatini alıyoruz.
     today = get_turkey_time()
 
-    # --- GÖRSEL ÖĞRENCİ SEÇİMİ ---
+    # --- ÖĞRENCİ SEÇİMİ ---
     active_student_filter = user 
     
     if user in parents:
@@ -332,8 +343,8 @@ def main_app():
             active_student_filter = st.session_state.global_student_selection
     
     st.divider()
+
     if not df.empty:
-        # VERİYİ FİLTRELE
         filtered_df = df if active_student_filter is None else df[df["Kullanıcı"] == active_student_filter]
 
         # --- DASHBOARD ---
@@ -397,16 +408,17 @@ def main_app():
                         with st.container(border=True):
                             st.info(f"Düzenleniyor: {row.Kullanıcı} - {row.Ders}")
                             with st.form(f"edit_form_{index}"):
-                                c_edit1, c_edit2 = st.columns(2)
+                                c_edit1, c_edit2, c_edit3 = st.columns(3)
                                 ders_list = ["Matematik", "Fen", "Türkçe", "Sosyal", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Diğer"]
                                 current_ders_idx = ders_list.index(row.Ders) if row.Ders in ders_list else 0
                                 
-                                new_ders = c_edit1.selectbox("Ders", ders_list, index=current_ders_idx)
-                                new_konu = c_edit2.text_input("Konu", value=row.Konu)
+                                new_tarih = c_edit1.date_input("Tarih", value=row.Tarih)
+                                new_ders = c_edit2.selectbox("Ders", ders_list, index=current_ders_idx)
+                                new_konu = c_edit3.text_input("Konu", value=row.Konu)
                                 
                                 c_save, c_cancel = st.columns([1, 1])
                                 if c_save.form_submit_button("Kaydet", icon=":material/save:", use_container_width=True, type="primary"):
-                                    edit_task(row.rowIndex, new_ders, new_konu)
+                                    edit_task(row.rowIndex, new_tarih, new_ders, new_konu)
                                     st.session_state.edit_mode_index = None
                                     st.toast("Başarıyla Güncellendi!")
                                     time.sleep(1)
@@ -434,7 +446,7 @@ def main_app():
                             else:
                                 st.write(row.Durum)
                         
-                        row_cols[5].write(f"{row.Sure} dk")
+                        row_cols[5].write(format_text_duration(row.Sure))
                         row_cols[6].write(f"{row.SoruSayisi}")
                         
                         with row_cols[7]:
