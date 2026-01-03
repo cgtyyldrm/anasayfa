@@ -332,7 +332,6 @@ def main_app():
             active_student_filter = st.session_state.global_student_selection
     
     st.divider()
-
     if not df.empty:
         # VERİYİ FİLTRELE
         filtered_df = df if active_student_filter is None else df[df["Kullanıcı"] == active_student_filter]
