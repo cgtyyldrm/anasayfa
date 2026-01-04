@@ -1,8 +1,7 @@
-// --- Code.gs ---
+// --- Code.gs (Doğru/Yanlış Destekli) ---
 
 function doGet(e) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  // Verileri olduğu gibi (metin formatında) çekiyoruz
   var data = sheet.getDataRange().getDisplayValues();
   
   if (data.length === 0) {
@@ -17,7 +16,6 @@ function doGet(e) {
     headers.forEach(function(header, i) {
       obj[header] = row[i] || "";
     });
-    // Satır indeksini ekle (Python tarafında silme/düzenleme için kritik)
     obj["rowIndex"] = rowIndex; 
     return obj;
   });
@@ -38,11 +36,10 @@ function doPost(e) {
   var action = params.action;
   var lock = LockService.getScriptLock();
   
-  // Çakışmaları önlemek için kilitleme
   if (lock.tryLock(10000)) {
     try {
       
-      // 1. GÖREV EKLEME
+      // 1. EKLEME (Sütun sırasına dikkat: Sure, Dogru, Yanlis, Toplam)
       if (action === "add") {
         sheet.appendRow([
           params.tarih, 
@@ -53,52 +50,59 @@ function doPost(e) {
           params.notlar,
           "", // Baslangic
           0,  // Sure
-          0   // SoruSayisi
+          0,  // Dogru
+          0,  // Yanlis
+          0   // Toplam
         ]);
         return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Added"})).setMimeType(ContentService.MimeType.JSON);
       }
       
-      // 2. GÖREV SİLME
+      // 2. SİLME
       else if (action === "delete") {
         var rowIndex = parseInt(params.rowIndex);
-        var sheetRow = rowIndex + 2; // Başlık satırı nedeniyle +2
-        
+        var sheetRow = rowIndex + 2; 
         sheet.deleteRow(sheetRow);
-        
         return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Deleted"})).setMimeType(ContentService.MimeType.JSON);
       }
 
-      // 3. GÖREV DÜZENLEME (TARİH EKLENDİ)
+      // 3. DÜZENLEME (Tarih, Ders, Konu)
       else if (action === "edit") {
         var rowIndex = parseInt(params.rowIndex);
         var sheetRow = rowIndex + 2;
         
-        // --- DEĞİŞİKLİK BURADA ---
-        // 1. Sütun -> Tarih (Bunu ekledik)
         sheet.getRange(sheetRow, 1).setValue(params.tarih);
-
-        // 3. Sütun -> Ders
         sheet.getRange(sheetRow, 3).setValue(params.ders);
-        // 4. Sütun -> Konu
         sheet.getRange(sheetRow, 4).setValue(params.konu);
-        // 6. Sütun -> Notlar
-        sheet.getRange(sheetRow, 6).setValue(params.notlar);
         
         return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Edited"})).setMimeType(ContentService.MimeType.JSON);
       }
       
-      // 4. BAŞLATMA / TAMAMLAMA / GÜNCELLEME
+      // 4. TAMAMLAMA / İLERLEME GÜNCELLEME (Doğru/Yanlış Eklendi)
       else if (action === "complete") {
         var rowIndex = parseInt(params.rowIndex);
         var sheetRow = rowIndex + 2;
         
+        // Durum
         if (params.durum) sheet.getRange(sheetRow, 5).setValue(params.durum);
-        if (params.sure !== undefined) sheet.getRange(sheetRow, 8).setValue(params.sure);
-        if (params.soru_sayisi !== undefined) sheet.getRange(sheetRow, 9).setValue(params.soru_sayisi);
         
-        // Eğer durum "Çalışılıyor" ise başlangıç zamanını at (Log amaçlı)
+        // Süre (Sütun 8)
+        if (params.sure !== undefined) sheet.getRange(sheetRow, 8).setValue(params.sure);
+        
+        // Doğru (Sütun 9)
+        if (params.dogru !== undefined) sheet.getRange(sheetRow, 9).setValue(params.dogru);
+        
+        // Yanlış (Sütun 10)
+        if (params.yanlis !== undefined) sheet.getRange(sheetRow, 10).setValue(params.yanlis);
+        
+        // Toplam Hesapla ve Yaz (Sütun 11)
+        // Eğer param olarak gelmediyse hücreden oku, ama genelde Python gönderir. 
+        // Biz Python'dan toplamı göndereceğiz garanti olsun.
+        if (params.toplam !== undefined) sheet.getRange(sheetRow, 11).setValue(params.toplam);
+        
+        // Başlangıç Zamanı Logla
         if (params.durum === "Çalışılıyor") {
-            sheet.getRange(sheetRow, 7).setValue(new Date().toISOString());
+            var cell = sheet.getRange(sheetRow, 7);
+            if(cell.getValue() === "") cell.setValue(new Date().toISOString());
         }
         
         return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Updated"})).setMimeType(ContentService.MimeType.JSON);
