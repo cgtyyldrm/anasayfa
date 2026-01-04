@@ -58,7 +58,7 @@ function doPost(e) {
         return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Added"})).setMimeType(ContentService.MimeType.JSON);
       }
       
-      // 2. GÖREV SİLME (YENİ)
+      // 2. GÖREV SİLME
       else if (action === "delete") {
         var rowIndex = parseInt(params.rowIndex);
         var sheetRow = rowIndex + 2; // Başlık satırı nedeniyle +2
@@ -68,17 +68,20 @@ function doPost(e) {
         return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Deleted"})).setMimeType(ContentService.MimeType.JSON);
       }
 
-      // 3. GÖREV DÜZENLEME (YENİ)
+      // 3. GÖREV DÜZENLEME (TARİH EKLENDİ)
       else if (action === "edit") {
         var rowIndex = parseInt(params.rowIndex);
         var sheetRow = rowIndex + 2;
         
-        // Sadece değiştirilebilir alanları güncelle (Ders, Konu, Notlar)
-        // C Sütunu (3) -> Ders
+        // --- DEĞİŞİKLİK BURADA ---
+        // 1. Sütun -> Tarih (Bunu ekledik)
+        sheet.getRange(sheetRow, 1).setValue(params.tarih);
+
+        // 3. Sütun -> Ders
         sheet.getRange(sheetRow, 3).setValue(params.ders);
-        // D Sütunu (4) -> Konu
+        // 4. Sütun -> Konu
         sheet.getRange(sheetRow, 4).setValue(params.konu);
-        // F Sütunu (6) -> Notlar
+        // 6. Sütun -> Notlar
         sheet.getRange(sheetRow, 6).setValue(params.notlar);
         
         return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Edited"})).setMimeType(ContentService.MimeType.JSON);
