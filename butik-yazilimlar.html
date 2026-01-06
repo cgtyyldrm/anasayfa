@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Butik Yazılımlar - Doç.Dr. Çağatay Yıldırım</title>
+    <!-- Modern Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;700;800&display=swap"
+        rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header>
+        <nav>
+            <div class="logo">Doç.Dr. Çağatay Yıldırım</div>
+            <div class="menu-toggle" id="mobile-menu">
+                <i class="fas fa-bars"></i>
+            </div>
+            <ul class="nav-links">
+                <li><a href="index.html#home">Anasayfa</a></li>
+                <li><a href="index.html#about">Hakkımda</a></li>
+                <li><a href="index.html#publications">Yayınlar</a></li>
+                <li><a href="index.html#projects">Projeler</a></li>
+                <li><a href="ders-materyalleri.html">Dersler</a></li>
+                <li><a href="butik-yazilimlar.html" class="active">Butik Yazılımlar</a></li>
+                <li><a href="index.html#contact">İletişim</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <div class="page-header">
+        <div class="container">
+            <span class="badge">Yazılım Projeleri</span>
+            <h1 class="section-title">Butik Yazılımlar</h1>
+            <p style="color: var(--text-secondary); max-width: 600px; margin: 0 auto;">
+                Akademik süreçleri kolaylaştırmak, kişisel verimliliği artırmak ve eğitim teknolojilerine katkı sağlamak
+                amacıyla geliştirdiğim yazılım çözümleri.
+            </p>
+        </div>
+    </div>
+
+    <!-- Software Projects Section -->
+    <section class="course-container">
+
+        <div class="materials-grid">
+
+            <!-- Project 1: Study Buddy -->
+            <div class="course-card">
+                <h3 class="course-title">
+                    <i class="fas fa-graduation-cap"></i>
+                    Study Buddy
+                </h3>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                    Çocuklarımın ders çalışma programlarını takip etmek ve motive etmek amacıyla geliştirdiğim, Google
+                    Sheets entegreli Streamlit uygulaması.
+                </p>
+
+                <div class="skill-tags" style="margin-bottom: 20px; justify-content: flex-start;">
+                    <span class="skill-tag">Python</span>
+                    <span class="skill-tag">Streamlit</span>
+                    <span class="skill-tag">Google Sheets API</span>
+                </div>
+
+                <a href="https://anasayfa-7wmcsuczd8qypd8uoddzvy.streamlit.app" target="_blank"
+                    class="material-link video-link"
+                    style="justify-content: center; background: rgba(56, 189, 248, 0.1); border-color: rgba(56, 189, 248, 0.2); color: var(--accent-color);">
+                    <i class="fas fa-external-link-alt"></i>
+                    Uygulamaya Git
+                </a>
+            </div>
+
+            <!-- Project 2: QR Yoklama -->
+            <div class="course-card">
+                <h3 class="course-title">
+                    <i class="fas fa-qrcode"></i>
+                    QR Yoklama Sistemi
+                </h3>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                    Derslerde yoklama sürecini dijitalleştiren, öğrencilerin QR kod okutarak saniyeler içinde
+                    katılımlarını kayıt altına alabildiği sistem.
+                </p>
+                <div class="skill-tags" style="margin-bottom: 20px; justify-content: flex-start;">
+                    <span class="skill-tag">HTML/JS</span>
+                    <span class="skill-tag">Google Apps Script</span>
+                    <span class="skill-tag">QR Code</span>
+                </div>
+                <a href="https://cgtyyldrm.github.io/yoklama/student.html" target="_blank"
+                    class="material-link video-link"
+                    style="justify-content: center; background: rgba(56, 189, 248, 0.1); border-color: rgba(56, 189, 248, 0.2); color: var(--accent-color);">
+                    <i class="fas fa-external-link-alt"></i>
+                    Sisteme Giriş
+                </a>
+            </div>
+
+            <!-- Project 3: Academic Editing -->
+            <div class="course-card">
+                <h3 class="course-title">
+                    <i class="fas fa-edit"></i>
+                    Akademik Yazımlar
+                </h3>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                    Akademik makale ve tezlerin düzenleme süreçlerini yöneten, yazar ve editör arasındaki dosya
+                    trafiğini ve durum takibini sağlayan platform.
+                </p>
+                <div class="skill-tags" style="margin-bottom: 20px; justify-content: flex-start;">
+                    <span class="skill-tag">Next.js</span>
+                    <span class="skill-tag">Tailwind</span>
+                    <span class="skill-tag">PostgreSQL</span>
+                </div>
+                <a href="https://academic-editing-system.onrender.com/" class="material-link doc-link"
+                    style="justify-content: center; opacity: 0.6; cursor: not-allowed;">
+                    <i class="fas fa-lock"></i>
+                    Geliştirme Aşamasında
+                </a>
+            </div>
+
+
+
+        </div>
+
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="social-links">
+            <a href="https://www.linkedin.com/in/çağatay-yıldırım" target="_blank" class="social-link"><i
+                    class="fab fa-linkedin-in"></i></a>
+            <a href="https://github.com/cgtyyldrm" target="_blank" class="social-link"><i class="fab fa-github"></i></a>
+            <a href="https://x.com/cgty_yildirim" target="_blank" class="social-link"><i class="fab fa-twitter"></i></a>
+            <a href="https://www.instagram.com/cagatayyldrm/" target="_blank" class="social-link"><i
+                    class="fab fa-instagram"></i></a>
+            <a href="https://scholar.google.com/citations?user=RSMg9IkAAAAJ&hl=tr" target="_blank"
+                class="social-link"><i class="fa-solid fa-graduation-cap"></i></a>
+            <a href="https://orcid.org/0000-0002-4121-5564" target="_blank" class="social-link">
+                <i class="ai ai-orcid"></i>
+            </a>
+            <a href="https://publons.com/researcher/W-3462-2017/" target="_blank" class="social-link">
+                <i class="ai ai-publons"></i>
+            </a>
+            <a href="https://www.scopus.com/authid/detail.uri?authorId=57111768300" target="_blank" class="social-link">
+                <i class="ai ai-scopus"></i>
+            </a>
+            <a href="https://www.researchgate.net/profile/Cagatay-Yildirim-2?ev=hdr_xprf" target="_blank"
+                class="social-link">
+                <i class="ai ai-researchgate"></i>
+            </a>
+            <a href="https://akademik.yok.gov.tr/AkademikArama/AkademisyenGorevOgrenimBilgileri?islem=direct&authorId=9712734D69A7780A"
+                target="_blank" class="social-link" title="YÖKSİS Akademik Profil">
+                <i class="fas fa-university"></i>
+            </a>
+        </div>
+        <p class="footer-text">&copy; 2025 Çağatay Yıldırım. Tüm hakları saklıdır.</p>
+    </footer>
+
+    <script src="script.js"></script>
+    <script>
+        // Basit mobil menü toggle işlemi (script.js muhtemelen bunu yapıyor ama garanti olsun)
+        const mobileMenuBtn = document.getElementById('mobile-menu');
+        const navLinks = document.querySelector('.nav-links');
+
+        if (mobileMenuBtn) {
+            mobileMenuBtn.addEventListener('click', () => {
+                navLinks.classList.toggle('active');
+            });
+        }
+    </script>
+</body>
+
+</html>
