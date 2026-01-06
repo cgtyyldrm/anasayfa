@@ -804,6 +804,14 @@ footer {
     /* Padding animasyonu bozmasın diye sıfırlıyoruz */
 }
 
+/* Force visibility for Boutique Software page */
+.materials-grid.always-visible {
+    max-height: none;
+    overflow: visible;
+    gap: 30px;
+    opacity: 1;
+}
+
 /* Açık Durum */
 .materials-grid.active {
     opacity: 1;
@@ -838,9 +846,12 @@ footer {
 
 /* Kart Tasarımı */
 .course-card {
-    background: rgba(255, 255, 255, 0.05); /* Hafif şeffaf beyaz arka plan */
-    border: 1px solid rgba(255, 255, 255, 0.1); /* İnce kenarlık */
-    border-radius: 16px; /* Yuvarlatılmış köşeler */
+    background: rgba(255, 255, 255, 0.05);
+    /* Hafif şeffaf beyaz arka plan */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    /* İnce kenarlık */
+    border-radius: 16px;
+    /* Yuvarlatılmış köşeler */
     padding: 2rem;
     transition: all 0.3s ease;
     display: flex;
@@ -851,13 +862,15 @@ footer {
 .course-card:hover {
     transform: translateY(-5px);
     background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(56, 189, 248, 0.5); /* Hover olunca mavi kenarlık */
+    border-color: rgba(56, 189, 248, 0.5);
+    /* Hover olunca mavi kenarlık */
     box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
 }
 
 /* Başlık Stili */
 .course-title {
-    color: #fff; /* Beyaz yazı */
+    color: #fff;
+    /* Beyaz yazı */
     font-size: 1.5rem;
     margin-bottom: 1rem;
     display: flex;
@@ -866,7 +879,8 @@ footer {
 }
 
 .course-title i {
-    color: #38bdf8; /* Mavi ikon rengi */
+    color: #38bdf8;
+    /* Mavi ikon rengi */
 }
 
 /* Etiketler (Python, Streamlit vb.) */
@@ -894,7 +908,8 @@ footer {
     border-radius: 8px;
     text-decoration: none;
     font-weight: 500;
-    margin-top: auto; /* Butonu her zaman en alta iter */
+    margin-top: auto;
+    /* Butonu her zaman en alta iter */
     transition: all 0.3s ease;
     border: 1px solid transparent;
 }
