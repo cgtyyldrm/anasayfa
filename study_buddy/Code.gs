@@ -39,7 +39,7 @@ function doPost(e) {
   if (lock.tryLock(10000)) {
     try {
       
-      // 1. EKLEME (Sütun sırasına dikkat: Sure, Dogru, Yanlis, Toplam)
+      // 1. EKLEME (Sütun sırasına dikkat: Sure, Dogru, Yanlis, Bos, Toplam)
       if (action === "add") {
         sheet.appendRow([
           params.tarih, 
@@ -52,6 +52,7 @@ function doPost(e) {
           0,  // Sure
           0,  // Dogru
           0,  // Yanlis
+          0,  // Bos
           0   // Toplam
         ]);
         return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Added"})).setMimeType(ContentService.MimeType.JSON);
@@ -94,10 +95,13 @@ function doPost(e) {
         // Yanlış (Sütun 10)
         if (params.yanlis !== undefined) sheet.getRange(sheetRow, 10).setValue(params.yanlis);
         
-        // Toplam Hesapla ve Yaz (Sütun 11)
+        // Boş (Sütun 11)
+        if (params.bos !== undefined) sheet.getRange(sheetRow, 11).setValue(params.bos);
+
+        // Toplam Hesapla ve Yaz (Sütun 12)
         // Eğer param olarak gelmediyse hücreden oku, ama genelde Python gönderir. 
         // Biz Python'dan toplamı göndereceğiz garanti olsun.
-        if (params.toplam !== undefined) sheet.getRange(sheetRow, 11).setValue(params.toplam);
+        if (params.toplam !== undefined) sheet.getRange(sheetRow, 12).setValue(params.toplam);
         
         // Başlangıç Zamanı Logla
         if (params.durum === "Çalışılıyor") {
