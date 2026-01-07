@@ -450,8 +450,8 @@ def main_app():
     with st.sidebar:
         st.title(f"Profil: {user}")
         
-        current_berru_img = st.session_state.get("img_berru", "https://cdn-icons-png.flaticon.com/512/4322/4322991.png")
-        current_ela_img = st.session_state.get("img_ela", "https://cdn-icons-png.flaticon.com/512/4322/4322992.png")
+        current_berru_img = "https://static.wixstatic.com/media/ed30a3_d16278085bbe4c29883c16a7bf4cf9da~mv2.png/v1/fill/w_568,h_520,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/ed30a3_d16278085bbe4c29883c16a7bf4cf9da~mv2.png"
+        current_ela_img = "https://i.pinimg.com/736x/67/8c/e7/678ce70749aaa819143cd1411fc26749.jpg"
         
         c_img1, c_img2, c_img3 = st.columns([1, 2, 1])
         with c_img2:
@@ -462,12 +462,7 @@ def main_app():
             
         st.write("---")
         
-        if user in parents:
-            with st.expander("📸 Profil Fotoğrafı Linki"):
-                url_berru = st.text_input("Berru Link", key="url_berru_in")
-                if url_berru: st.session_state["img_berru"] = url_berru
-                url_ela = st.text_input("Ela Link", key="url_ela_in")
-                if url_ela: st.session_state["img_ela"] = url_ela
+
 
         st.write("---")
         
@@ -557,8 +552,8 @@ def main_app():
     active_student_filter = user 
     
     if user in parents:
-        img_berru_src = st.session_state.get("img_berru", "https://cdn-icons-png.flaticon.com/512/4322/4322991.png")
-        img_ela_src = st.session_state.get("img_ela", "https://cdn-icons-png.flaticon.com/512/4322/4322992.png")
+        img_berru_src = "https://static.wixstatic.com/media/ed30a3_d16278085bbe4c29883c16a7bf4cf9da~mv2.png/v1/fill/w_568,h_520,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/ed30a3_d16278085bbe4c29883c16a7bf4cf9da~mv2.png"
+        img_ela_src = "https://i.pinimg.com/736x/67/8c/e7/678ce70749aaa819143cd1411fc26749.jpg"
         img_all_src = "https://cdn-icons-png.flaticon.com/512/681/681494.png"
 
         c_space1, c_sel_all, c_sel_berru, c_sel_ela, c_space2 = st.columns([2, 1, 1, 1, 2])
