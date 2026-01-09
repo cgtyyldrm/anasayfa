@@ -23,7 +23,25 @@ def get_turkey_time():
 
 # CSS Ayarları
 st.markdown("""
-    <style>
+<script>
+    // Simple Wake Lock API Wrapper
+    let wakeLock = null;
+    async function requestWakeLock() {
+        try {
+            wakeLock = await navigator.wakeLock.request('screen');
+            console.log('Wake Lock is active!');
+            wakeLock.addEventListener('release', () => {
+                console.log('Wake Lock has been released');
+            });
+        } catch (err) {
+            console.error(`${err.name}, ${err.message}`);
+        }
+    }
+    
+    // Auto-request on load if possible, or trigger via Python interaction later
+    // requestWakeLock(); 
+</script>
+<style>
     /* Google Fonts import (Optional - Streamlit runs locally so maybe skipped, sticking to websafe) */
     @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;700&display=swap');
 
@@ -311,7 +329,7 @@ if "global_student_selection" not in st.session_state: st.session_state.global_s
 cookie_user = cookie_manager.get(cookie="study_buddy_user")
 
 # Eğer çerez varsa ve session boşsa, session'ı doldur (Otomatik Giriş)
-if cookie_user and st.session_state.authenticated_user is None:
+if cookie_user and st.session_state.authenticated_user is None and not st.session_state.get("logout_clicked", False):
     st.session_state.authenticated_user = cookie_user
 
 MOTIVATION_QUOTES = [
@@ -343,6 +361,7 @@ def login_screen():
                         
                         # Session'a kaydet
                         st.session_state["authenticated_user"] = username
+                        st.session_state["logout_clicked"] = False
                         
                         # Çereze kaydet (30 gün geçerli)
                         cookie_manager.set("study_buddy_user", username, expires_at=datetime.now() + timedelta(days=30))
@@ -417,6 +436,23 @@ def update_task_progress(index, status, sure_saniye, dogru, yanlis, bos=0):
     try: requests.post(url, json=payload)
     except: pass
 
+def log_task(tarih, kullanıcı, ders, konu, sure_saniye):
+    url = st.secrets["connections"]["webapp_url"]
+    # Log directly as "Tamamlandı" with duration
+    payload = {
+        "action": "add", 
+        "tarih": str(tarih), 
+        "kullanici": kullanıcı, 
+        "ders": ders, 
+        "konu": konu, 
+        "durum": "Tamamlandı", 
+        "notlar": "Okuma Seansı",
+        "sure": sure_saniye,
+        "dogru": 0, "yanlis": 0, "bos": 0, "toplam": 0
+    }
+    try: requests.post(url, json=payload)
+    except: pass
+
 def format_timer_display(seconds):
     mins, secs = divmod(int(seconds), 60)
     hours, mins = divmod(mins, 60)
@@ -446,6 +482,7 @@ def format_date_tr(d):
 def main_app():
     user = st.session_state["authenticated_user"]
     parents = ["Baba", "Anne"]
+    today = get_turkey_time()
     
     with st.sidebar:
         st.title(f"Profil: {user}")
@@ -472,36 +509,100 @@ def main_app():
             cookie_manager.delete("study_buddy_user")
             # 2. Session state'i temizle
             st.session_state["authenticated_user"] = None
+            st.session_state["logout_clicked"] = True
             # 3. Bekle ve yenile
+            time.sleep(0.5)
+            st.rerun()
+
             time.sleep(0.5)
             st.rerun()
 
     # --- ODAK EKRANI ---
     if st.session_state.timer_active:
+        task = st.session_state.current_task_info
+        is_reading_mode = task.get('ders') == "Kitap Okuma"
+        
+        # --- Wake Lock Injection for Mobile (Keep Screen On) ---
+        # We inject this every rerun if timer is active to ensure lock is requested
+        st.markdown("""
+            <script>
+            async function triggerWakeLock() {
+                try {
+                    const wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Wake Lock Re-triggered');
+                } catch (err) { console.log(err); }
+            }
+            triggerWakeLock();
+            </script>
+        """, unsafe_allow_html=True)
+
         c_focus_1, c_focus_2, c_focus_3 = st.columns([1, 2, 1])
         with c_focus_2:
-            task = st.session_state.current_task_info
-            st.markdown(f"<div style='text-align:center; font-size: 2rem; font-weight:bold;'>🎯 {task['ders']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='text-align:center; font-size: 2rem; font-weight:bold;'>{( '📖' if is_reading_mode else '🎯' )} {task['ders']}</div>", unsafe_allow_html=True)
             st.markdown(f"<div style='text-align:center; color:gray;'>{task['konu']}</div>", unsafe_allow_html=True)
             st.divider()
 
             current_time = time.time()
-            elapsed = st.session_state.timer_accumulated + (current_time - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
             
-            st.markdown(f"<div style='text-align: center; font-size: 80px; color: #D81B60;' class='timer-font'>{format_timer_display(elapsed)}</div>", unsafe_allow_html=True)
+            # --- READING MODE SPECIFIC LOGIC ---
+            if is_reading_mode:
+                # Initialize Reading Duration Selection if not set
+                if "reading_duration" not in st.session_state:
+                    st.session_state.reading_duration = 15 # Default
+                
+                if not st.session_state.timer_running and st.session_state.timer_accumulated == 0:
+                     st.info("Ne kadar kitap okuyacaksın?")
+                     dur = st.slider("Süre (Dakika)", 10, 60, 15, step=5)
+                     st.session_state.reading_duration = dur
+                     # We use 'timer_accumulated' to store duration in seconds effectively or just logic below
+                
+                # Logic: Timer counts DOWN from Target
+                # elapsed is how much time passed since start
+                elapsed_since_start = (current_time - st.session_state.timer_start_time) if st.session_state.timer_running else 0
+                total_elapsed = st.session_state.timer_accumulated + elapsed_since_start
+                
+                # But for reading, we want countdown. 
+                # Let's say target is X mins. Remaining = X*60 - total_elapsed
+                target_seconds = st.session_state.get("reading_duration", 15) * 60
+                remaining = max(0, target_seconds - total_elapsed)
+                
+                # Check Completion
+                if remaining == 0 and st.session_state.timer_running:
+                     st.session_state.timer_running = False
+                     st.session_state.timer_accumulated = total_elapsed
+                     # AUDIO ALERT
+                     st.markdown("""
+                        <audio autoplay>
+                        <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+                        </audio>
+                        """, unsafe_allow_html=True)
+                     st.success("Süre Doldu! 📚 Harika bir okuma saatiydi!")
+                     st.balloons()
+                
+                st.markdown(f"<div style='text-align: center; font-size: 80px; color: #D81B60;' class='timer-font'>{format_timer_display(remaining)}</div>", unsafe_allow_html=True)
+                
+                # Reading Mode doesn't use Dogru/Yanlis usually, just Time.
+                # Assuming simple completion.
+                
+            else:
+                # --- STANDARD MODE (Stopwatch) ---
+                elapsed = st.session_state.timer_accumulated + (current_time - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
+                st.markdown(f"<div style='text-align: center; font-size: 80px; color: #D81B60;' class='timer-font'>{format_timer_display(elapsed)}</div>", unsafe_allow_html=True)
 
-            c_input1, c_input2, c_input3 = st.columns(3)
-            with c_input1:
-                d_input = st.number_input("✅ Doğru", min_value=0, step=1, value=st.session_state.temp_dogru)
-                st.session_state.temp_dogru = d_input
-            with c_input2:
-                y_input = st.number_input("❌ Yanlış", min_value=0, step=1, value=st.session_state.temp_yanlis)
-                st.session_state.temp_yanlis = y_input
-            with c_input3:
-                b_input = st.number_input("⚪ Boş", min_value=0, step=1, value=st.session_state.temp_bos)
-                st.session_state.temp_bos = b_input
-            
-            st.caption(f"Toplam Çözülen: **{st.session_state.temp_dogru + st.session_state.temp_yanlis + st.session_state.temp_bos}** (Doğru + Yanlış + Boş)")
+            if not is_reading_mode:
+                c_input1, c_input2, c_input3 = st.columns(3)
+                with c_input1:
+                    d_input = st.number_input("✅ Doğru", min_value=0, step=1, value=st.session_state.temp_dogru)
+                    st.session_state.temp_dogru = d_input
+                with c_input2:
+                    y_input = st.number_input("❌ Yanlış", min_value=0, step=1, value=st.session_state.temp_yanlis)
+                    st.session_state.temp_yanlis = y_input
+                with c_input3:
+                    b_input = st.number_input("⚪ Boş", min_value=0, step=1, value=st.session_state.temp_bos)
+                    st.session_state.temp_bos = b_input
+                st.caption(f"Toplam Çözülen: **{st.session_state.temp_dogru + st.session_state.temp_yanlis + st.session_state.temp_bos}** (Doğru + Yanlış + Boş)")
+            else:
+                 st.info("Kitap okuma saati! Sessiz ve odaklanmış kalalım. 🤫")
 
             st.write("")
             col_btn1, col_btn2 = st.columns(2)
@@ -512,25 +613,42 @@ def main_app():
                         st.session_state.timer_running = False
                         st.rerun()
                 else:
-                    if st.button("▶️ Devam Et", type="primary", use_container_width=True):
-                        st.session_state.timer_start_time = time.time()
-                        st.session_state.timer_running = True
-                        st.rerun()
+                    btn_text = "▶️ Başla" if st.session_state.timer_accumulated == 0 else "▶️ Devam Et"
+                    if remaining == 0 and is_reading_mode and st.session_state.timer_accumulated > 0:
+                         pass # Completed, don't show Resume
+                    else:
+                        if st.button(btn_text, type="primary", use_container_width=True):
+                            st.session_state.timer_start_time = time.time()
+                            st.session_state.timer_running = True
+                            st.rerun()
             
             with col_btn2:
-                if st.button("🏁 Bitir", type="primary", use_container_width=True):
+                # Finish Logic
+                finish_label = "🏁 Bitir"
+                if is_reading_mode: finish_label = "✅ Okumayı Bitir"
+                
+                if st.button(finish_label, type="primary", use_container_width=True):
                     final_sec = st.session_state.timer_accumulated + (time.time() - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
-                    update_task_progress(task['index'], "Tamamlandı", int(final_sec), st.session_state.temp_dogru, st.session_state.temp_yanlis, st.session_state.temp_bos)
+                    
+                    if task.get("is_reading_session", False):
+                         # Direct Log for Library Session
+                         log_task(today, user, task['ders'], task['konu'], int(final_sec))
+                    else:
+                        # Update Task Progress for Normal Tasks
+                        update_task_progress(task['index'], "Tamamlandı", int(final_sec), st.session_state.temp_dogru, st.session_state.temp_yanlis, st.session_state.temp_bos)
+                    
                     st.session_state.timer_active = False
                     st.session_state.timer_running = False
                     st.session_state.timer_accumulated = 0
                     st.session_state.temp_dogru = 0
                     st.session_state.temp_yanlis = 0
                     st.session_state.temp_bos = 0
+                    if "reading_duration" in st.session_state: del st.session_state.reading_duration
                     st.balloons(); time.sleep(1.5); st.rerun()
 
             st.write("")
-            if st.button("💾 Kaydet ve Çık (Bitmedi)", use_container_width=True):
+            # Save for Later (Not relevant for Reading Mode usually, but kept for consistency)
+            if not is_reading_mode and st.button("💾 Kaydet ve Çık (Bitmedi)", use_container_width=True):
                 final_sec = st.session_state.timer_accumulated + (time.time() - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
                 update_task_progress(task['index'], "Beklemede", int(final_sec), st.session_state.temp_dogru, st.session_state.temp_yanlis, st.session_state.temp_bos)
                 st.session_state.timer_active = False
@@ -540,6 +658,11 @@ def main_app():
                 st.session_state.temp_yanlis = 0
                 st.session_state.temp_bos = 0
                 st.rerun()
+            elif is_reading_mode and st.button("🔙 İptal / Çık", use_container_width=True):
+                 st.session_state.timer_active = False
+                 st.session_state.timer_running = False
+                 if "reading_duration" in st.session_state: del st.session_state.reading_duration
+                 st.rerun()
 
         if st.session_state.timer_running: time.sleep(1); st.rerun()
         return
@@ -547,7 +670,6 @@ def main_app():
     # --- ANA SAYFA ---
     st.markdown('<div class="main-title">Study Buddy</div>', unsafe_allow_html=True)
     df = get_data()
-    today = get_turkey_time()
 
     active_student_filter = user 
     
@@ -610,6 +732,10 @@ def main_app():
         total_wrong = dashboard_data["Yanlis"].sum()
         completed_count = len(dashboard_data[dashboard_data["Durum"] == "Tamamlandı"])
         
+        # Calculate Reading Time
+        reading_data = dashboard_data[dashboard_data["Ders"] == "Kitap Okuma"]
+        total_reading_time = format_text_duration(reading_data["Sure"].sum())
+
         # --- ÖZEL METRİK KARTLARI (ANİMASYONLU) ---
         # --- ÖZEL METRİK KARTLARI (ANİMASYONLU) ---
         # Not: Markdown code-block olmaması için indentation kaldırıldı
@@ -652,12 +778,17 @@ def main_app():
     <div class="metric-card">
         <span class="metric-icon">🧸</span>
         <div class="metric-value">{total_time}</div>
-        <div class="metric-label">Süre</div>
+        <div class="metric-label">Toplam Süre</div>
+    </div>
+    <div class="metric-card">
+        <span class="metric-icon">📚</span>
+        <div class="metric-value">{total_reading_time}</div>
+        <div class="metric-label">Kitap</div>
     </div>
     <div class="metric-card">
         <span class="metric-icon">🏆</span>
         <div class="metric-value"><span class='animate-num' data-end='{total_questions}'>{total_questions}</span></div>
-        <div class="metric-label">Toplam</div>
+        <div class="metric-label">Soru</div>
     </div>
     <div class="metric-card">
         <span class="metric-icon">💖</span>
@@ -779,7 +910,7 @@ localElements.forEach(el => {{
                     st.info(f"Düzenleniyor: {row.Kullanıcı} - {row.Ders}")
                     with st.form(f"edit_form_{index}"):
                         c_edit1, c_edit2, c_edit3 = st.columns(3)
-                        ders_list = ["Matematik", "Fen", "Türkçe", "Sosyal", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Diğer"]
+                        ders_list = ["Matematik", "Fen", "Türkçe", "Sosyal", "Hayat Bilgisi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Kitap Okuma", "Diğer"]
                         current_ders_idx = ders_list.index(row.Ders) if row.Ders in ders_list else 0
                         
                         new_tarih = c_edit1.date_input("Tarih", value=row.Tarih)
@@ -884,7 +1015,7 @@ localElements.forEach(el => {{
                         default_student_idx = student_options.index(active_student_filter)
                         
                     kisi_inp = c1.selectbox("Öğrenci", student_options, index=default_student_idx)
-                    ders_inp = c2.selectbox("Ders", ["Matematik", "Fen", "Türkçe", "Sosyal", "İngilizce", "Diğer"])
+                    ders_inp = c2.selectbox("Ders", ["Matematik", "Fen", "Türkçe", "Sosyal", "Hayat Bilgisi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Kitap Okuma", "Diğer"])
                     konu_inp = c2.text_input("Konu")
                     
                     if st.form_submit_button("Ekle", use_container_width=True):
@@ -893,7 +1024,7 @@ localElements.forEach(el => {{
 
     else:
         # --- ÖĞRENCİ GÖRÜNÜMÜ ---
-        tab1, tab2, tab3 = st.tabs(["📝 Görevlerim", "➕ Serbest Çalışma", "📈 İstatistiklerim"])
+        tab1, tab2, tab3, tab4 = st.tabs(["📝 Görevlerim", "📚 Kitaplığım", "➕ Serbest Çalışma", "📈 İstatistiklerim"])
         
         with tab1:
             c_s_filter1, c_s_filter2 = st.columns([1, 4])
@@ -912,14 +1043,108 @@ localElements.forEach(el => {{
             show_task_table(my_tasks, is_admin=False)
         
         with tab2:
-            st.subheader("✍️ Şimdi Çalışmaya Başla!")
-            st.markdown("Listedeki görevler bitti mi? Ya da canın ekstra çalışmak mı istiyor? Harikasın! 👇")
+            st.subheader("📚 Kitaplığım")
+            
+            # --- LIBRARY LOGIC ---
+            all_reading = df[(df["Kullanıcı"] == user) & (df["Ders"] == "Kitap Okuma")]
+            
+            # Find unique books and their status
+            # We group by 'Konu' (Book Name) and see the last entry
+            if not all_reading.empty:
+                # Sort by Index to get latest first
+                all_reading_sorted = all_reading.sort_values("rowIndex", ascending=False)
+                unique_books = all_reading_sorted["Konu"].unique()
+                
+                active_books = []
+                finished_books = []
+                
+                for book in unique_books:
+                    book_entries = all_reading_sorted[all_reading_sorted["Konu"] == book]
+                    last_status = book_entries.iloc[0]["Durum"]
+                    total_time_read = book_entries[book_entries["Durum"] != "Kitap Bitti"]["Sure"].sum()
+                    
+                    book_data = {"name": book, "time": total_time_read}
+                    
+                    if last_status == "Kitap Bitti":
+                        finished_books.append(book_data)
+                    else:
+                        active_books.append(book_data)
+                        
+                # --- ACTIVE BOOKS SECTION ---
+                st.markdown("### 📖 Okumaya Devam Et")
+                if active_books:
+                    for ab in active_books:
+                        with st.container(border=True):
+                            c_b_1, c_b_2, c_b_3 = st.columns([1, 3, 2])
+                            with c_b_1:
+                                st.markdown("<div style='font-size: 2.5rem; text-align:center;'>📘</div>", unsafe_allow_html=True)
+                            with c_b_2:
+                                st.markdown(f"**{ab['name']}**")
+                                st.caption(f"Toplam Okunan: **{format_text_duration(ab['time'])}**")
+                            with c_b_3:
+                                b_start, b_finish = st.columns(2)
+                                if b_start.button("Oku", key=f"read_{ab['name']}", type="primary", use_container_width=True):
+                                     st.session_state.timer_active = True
+                                     st.session_state.timer_running = False # Wait for user to start in focus screen
+                                     st.session_state.timer_start_time = None
+                                     st.session_state.timer_accumulated = 0
+                                     # Special Flag for Reading Session
+                                     st.session_state.current_task_info = {
+                                         "ders": "Kitap Okuma", 
+                                         "konu": ab['name'], 
+                                         "is_reading_session": True
+                                     }
+                                     st.rerun()
+                                     
+                                if b_finish.button("Bitir", key=f"fin_{ab['name']}", use_container_width=True):
+                                    # Log "Kitap Bitti" status
+                                    # We use 'add_task' but with status 'Kitap Bitti' and time 0
+                                    url = st.secrets["connections"]["webapp_url"]
+                                    payload = {"action": "add", "tarih": str(today), "kullanici": user, "ders": "Kitap Okuma", "konu": ab['name'], "durum": "Kitap Bitti", "notlar": "Tebrikler!", "sure": 0}
+                                    try: requests.post(url, json=payload)
+                                    except: pass
+                                    st.balloons()
+                                    time.sleep(1)
+                                    st.rerun()
+                else:
+                    st.info("Şu an okuduğun bir kitap yok. Aşağıdan yeni bir kitap ekle!")
+                
+                st.divider()
+                
+                # --- FINISHED BOOKS SECTION ---
+                if finished_books:
+                    with st.expander(f"🏆 Biten Kitaplar ({len(finished_books)})"):
+                        for fb in finished_books:
+                            st.write(f"✅ **{fb['name']}** - {format_text_duration(fb['time'])} okundu.")
+
+            # --- ADD NEW BOOK ---
+            with st.form("add_book_form"):
+                st.markdown("#### ➕ Yeni Kitap Ekle")
+                new_book_name = st.text_input("Kitap Adı")
+                if st.form_submit_button("Başla", use_container_width=True, type="primary"):
+                    if new_book_name:
+                         st.session_state.timer_active = True
+                         st.session_state.timer_running = False
+                         st.session_state.timer_start_time = None
+                         st.session_state.timer_accumulated = 0
+                         st.session_state.current_task_info = {
+                             "ders": "Kitap Okuma", 
+                             "konu": new_book_name, 
+                             "is_reading_session": True
+                         }
+                         st.rerun()
+                    else:
+                        st.warning("Lütfen bir kitap adı giriniz.")
+
+        with tab3:
+            st.subheader("➕ Serbest Çalışma")
+            st.markdown("Canın ekstra çalışmak mı istiyor? Harikasın! 👇")
             
             with st.container(border=True):
                 with st.form("free_study_form"):
                     
                     fs_ders = st.selectbox("Hangi Derse Çalışacaksın?", 
-                                           ["Matematik", "Fen", "Türkçe", "Sosyal", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Diğer"])
+                                           ["Matematik", "Fen", "Türkçe", "Sosyal", "Hayat Bilgisi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Diğer"])
                     fs_konu = st.text_input("Konu (İsteğe Bağlı)", placeholder="Örn: Kesirler Test Çözümü")
                     
                     if not fs_konu:
@@ -935,9 +1160,28 @@ localElements.forEach(el => {{
                         time.sleep(2)
                         st.rerun()
 
-        with tab3:
-            st.subheader("Aylık Performans")
+        with tab4:
+            st.subheader("📚 Okuma İstatistikleri")
+            reading_df = df[(df["Kullanıcı"] == user) & (df["Ders"] == "Kitap Okuma")]
+            
+            if not reading_df.empty:
+                col_stat1, col_stat2 = st.columns(2)
+                
+                # Total Reading Time
+                total_reading_seconds = reading_df["Sure"].sum()
+                col_stat1.metric("Toplam Okuma Süresi", format_text_duration(total_reading_seconds))
+                
+                # Books Finished
+                books_finished = len(reading_df[reading_df["Durum"] == "Kitap Bitti"])
+                col_stat2.metric("Bitirilen Kitap Sayısı", f"{books_finished} 📘")
+                
+                st.write("---")
+                
+            st.subheader("📊 Aylık Soru Performansı")
             monthly_data = df[(df["Kullanıcı"] == user) & (pd.to_datetime(df["Tarih"]).dt.month == today.month)]
+            # Filter out Reading tasks for question stats
+            monthly_data = monthly_data[monthly_data["Ders"] != "Kitap Okuma"]
+            
             if not monthly_data.empty:
                 st.bar_chart(monthly_data.groupby("Tarih")["Toplam"].sum())
                 st.caption("Günlük çözdüğün toplam soru sayısı")

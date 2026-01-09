@@ -48,12 +48,13 @@ function doPost(e) {
           params.konu, 
           params.durum, 
           params.notlar,
+          params.notlar,
           "", // Baslangic
-          0,  // Sure
-          0,  // Dogru
-          0,  // Yanlis
-          0,  // Bos
-          0   // Toplam
+          params.sure || 0,  // Sure
+          params.dogru || 0,  // Dogru
+          params.yanlis || 0,  // Yanlis
+          params.bos || 0,  // Bos
+          params.toplam || 0   // Toplam
         ]);
         return ContentService.createTextOutput(JSON.stringify({"status": "success", "message": "Added"})).setMimeType(ContentService.MimeType.JSON);
       }
