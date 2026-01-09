@@ -729,20 +729,24 @@ def main_app():
     if not df.empty:
         filtered_df = df if active_student_filter is None else df[df["Kullanıcı"] == active_student_filter]
 
-        period = st.radio("", ["Günlük", "Haftalık", "Aylık"], horizontal=True, label_visibility="collapsed")
+        c_p1, c_p2 = st.columns([1, 2])
+        with c_p1:
+             dashboard_date = st.date_input("Tarih", value=today, label_visibility="collapsed", key="dash_date_pick")
+        with c_p2:
+             period = st.radio("", ["Günlük", "Haftalık", "Aylık"], horizontal=True, label_visibility="collapsed")
         
         dashboard_data = pd.DataFrame()
         if period == "Günlük":
-            dashboard_data = filtered_df[filtered_df["Tarih"] == today]
-            metric_label = "Bugün"
+            dashboard_data = filtered_df[filtered_df["Tarih"] == dashboard_date]
+            metric_label = f"{format_date_tr(dashboard_date)}"
         elif period == "Haftalık":
-            start_week = today - timedelta(days=today.weekday())
+            start_week = dashboard_date - timedelta(days=dashboard_date.weekday())
             end_week = start_week + timedelta(days=6)
             dashboard_data = filtered_df[(filtered_df["Tarih"] >= start_week) & (filtered_df["Tarih"] <= end_week)]
-            metric_label = "Bu Hafta"
+            metric_label = "Seçilen Hafta"
         elif period == "Aylık":
-            dashboard_data = filtered_df[pd.to_datetime(filtered_df["Tarih"]).apply(lambda x: x.month == today.month and x.year == today.year)]
-            metric_label = "Bu Ay"
+            dashboard_data = filtered_df[pd.to_datetime(filtered_df["Tarih"]).apply(lambda x: x.month == dashboard_date.month and x.year == dashboard_date.year)]
+            metric_label = "Seçilen Ay"
 
         total_time = format_text_duration(dashboard_data["Sure"].sum())
         total_questions = dashboard_data["Toplam"].sum()
@@ -1009,23 +1013,18 @@ localElements.forEach(el => {{
         tab1, tab2 = st.tabs(["⚙️ Görev Yönetimi", "➕ Yeni Ekle"])
         
         with tab1:
-            c_filter1, c_filter2 = st.columns([1, 4])
-            with c_filter1:
-                selected_date = st.date_input("Tarih Seçin:", value=today, key="admin_date_picker")
-            
-            with c_filter2:
-                 student_title = active_student_filter if active_student_filter else "Tüm Öğrenciler"
-                 # Ribbon style title for Admin
-                 st.markdown(f"<div class='ribbon-title'>{student_title} - {format_date_tr(selected_date)}</div>", unsafe_allow_html=True)
+            student_title = active_student_filter if active_student_filter else "Tüm Öğrenciler"
+            # Ribbon style title for Admin
+            st.markdown(f"<div class='ribbon-title'>{student_title} - {format_date_tr(dashboard_date)}</div>", unsafe_allow_html=True)
 
-            table_data = filtered_df[filtered_df["Tarih"] == selected_date]
+            table_data = filtered_df[filtered_df["Tarih"] == dashboard_date]
             show_task_table(table_data, is_admin=True)
 
         with tab2:
             with st.container(border=True):
                 with st.form("new_task"):
                     c1, c2 = st.columns(2)
-                    tarih_inp = c1.date_input("Tarih", today)
+                    tarih_inp = c1.date_input("Tarih", dashboard_date)
                     
                     default_student_idx = 0
                     student_options = ["Berru", "Ela"]
@@ -1045,15 +1044,10 @@ localElements.forEach(el => {{
         tab1, tab2, tab3, tab4 = st.tabs(["📝 Görevlerim", "📚 Kitaplığım", "➕ Serbest Çalışma", "📈 İstatistiklerim"])
         
         with tab1:
-            c_s_filter1, c_s_filter2 = st.columns([1, 4])
-            with c_s_filter1:
-                selected_student_date = st.date_input("Tarih Seç:", value=today, key="student_date_picker")
-            
-            with c_s_filter2:
-                # Ribbon style title for Student
-                st.markdown(f"<div class='ribbon-title'>{format_date_tr(selected_student_date)}</div>", unsafe_allow_html=True)
+            # Ribbon style title for Student
+            st.markdown(f"<div class='ribbon-title'>{format_date_tr(dashboard_date)}</div>", unsafe_allow_html=True)
 
-            my_tasks = df[(df["Kullanıcı"] == user) & (df["Tarih"] == selected_student_date)].copy()
+            my_tasks = df[(df["Kullanıcı"] == user) & (df["Tarih"] == dashboard_date)].copy()
             status_map = {"Çalışılıyor": 0, "Beklemede": 0, "Planlandı": 1, "Tamamlandı": 2}
             my_tasks["sort"] = my_tasks["Durum"].map(status_map).fillna(1)
             my_tasks = my_tasks.sort_values("sort")
