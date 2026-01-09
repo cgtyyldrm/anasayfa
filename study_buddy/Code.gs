@@ -48,7 +48,6 @@ function doPost(e) {
           params.konu, 
           params.durum, 
           params.notlar,
-          params.notlar,
           "", // Baslangic
           params.sure || 0,  // Sure
           params.dogru || 0,  // Dogru
