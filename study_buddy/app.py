@@ -9,6 +9,24 @@ import extra_streamlit_components as stx # YENİ EKLENDİ
 
 # --- 1. Sayfa ve Stil Ayarları ---
 st.set_page_config(page_title="Study Buddy", page_icon="📚", layout="wide")
+# --- 1. Sayfa ve Stil Ayarları ---
+
+# --- IOS ANA EKRAN LOGOSU İÇİN ÖZEL KOD ---
+# BURAYA KOPYALADIĞIN GITHUB RAW LINKINI YAPIŞTIR:
+LOGO_URL = "https://github.com/cgtyyldrm/anasayfa/blob/main/assets/logo.PNG" 
+
+st.markdown(
+    f"""
+    <style>
+    </style>
+    <link rel="apple-touch-icon" sizes="180x180" href="{LOGO_URL}">
+    <link rel="icon" type="image/png" href="{LOGO_URL}">
+    <link rel="shortcut icon" type="image/png" href="{LOGO_URL}">
+    """,
+    unsafe_allow_html=True
+)
+# -------------------------------------------
+
 
 # --- Cookie Manager Kurulumu (Oturum Yönetimi) ---
 cookie_manager = stx.CookieManager()
