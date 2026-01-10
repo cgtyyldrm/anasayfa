@@ -13,7 +13,7 @@ except Exception:
         def __init__(self):
             if "_cookies" not in st.session_state:
                 st.session_state["_cookies"] = {}
-        def get(self, cookiif st.e=None):
+        def get(self, cookie=None):
             return st.session_state.get("_cookies", {}).get(cookie)
         def set(self, cookie, value, expires_at=None):
             if "_cookies" not in st.session_state:
