@@ -5,7 +5,28 @@ import requests
 import time
 import random
 import pytz
-import extra_streamlit_components as stx # YENİ EKLENDİ
+try:
+    import extra_streamlit_components as stx # YENİ EKLENDİ
+except Exception:
+    class _FallbackCookieManager:
+        def __init__(self):
+            if "_cookies" not in st.session_state:
+                st.session_state["_cookies"] = {}
+        def get(self, cookie=None):
+            return st.session_state.get("_cookies", {}).get(cookie)
+        def set(self, cookie, value, expires_at=None):
+            if "_cookies" not in st.session_state:
+                st.session_state["_cookies"] = {}
+            st.session_state["_cookies"][cookie] = value
+        def delete(self, cookie):
+            if "_cookies" in st.session_state:
+                st.session_state["_cookies"].pop(cookie, None)
+
+    class _stx:
+        CookieManager = _FallbackCookieManager
+
+    stx = _stx()
+    st.warning("`extra_streamlit_components` not installed — using fallback cookie manager.\nInstall with: pip install extra-streamlit-components")
 
 # --- 1. Sayfa ve Stil Ayarları ---
 st.set_page_config(page_title="Study Buddy", page_icon="logo.png", layout="wide")
