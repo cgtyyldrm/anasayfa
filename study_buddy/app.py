@@ -13,7 +13,7 @@ st.set_page_config(page_title="Study Buddy", page_icon="📚", layout="wide")
 
 # --- IOS ANA EKRAN LOGOSU İÇİN ÖZEL KOD ---
 # BURAYA KOPYALADIĞIN GITHUB RAW LINKINI YAPIŞTIR:
-LOGO_URL = "https://github.com/cgtyyldrm/anasayfa/blob/main/assets/logo.PNG" 
+LOGO_URL = "https://raw.githubusercontent.com/cgtyyldrm/anasayfa/main/assets/logo.PNG" 
 
 st.markdown(
     f"""
@@ -42,22 +42,33 @@ def get_turkey_time():
 # CSS Ayarları
 st.markdown("""
 <script>
-    // Simple Wake Lock API Wrapper
+    // Robust Wake Lock API Wrapper
     let wakeLock = null;
+
     async function requestWakeLock() {
-        try {
-            wakeLock = await navigator.wakeLock.request('screen');
-            console.log('Wake Lock is active!');
-            wakeLock.addEventListener('release', () => {
-                console.log('Wake Lock has been released');
-            });
-        } catch (err) {
-            console.error(`${err.name}, ${err.message}`);
+        if ('wakeLock' in navigator) {
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                console.log('Wake Lock active!');
+
+                wakeLock.addEventListener('release', () => {
+                   console.log('Wake Lock released'); 
+                });
+            } catch (err) {
+                console.error(`${err.name}, ${err.message}`);
+            }
         }
     }
-    
-    // Auto-request on load if possible, or trigger via Python interaction later
-    // requestWakeLock(); 
+
+    // Re-acquire lock when page comes back to visibility
+    document.addEventListener('visibilitychange', async () => {
+        if (wakeLock !== null && document.visibilityState === 'visible') {
+            await requestWakeLock();
+        }
+    });
+
+    // Request on load
+    requestWakeLock();
 </script>
 <style>
     /* Google Fonts import (Optional - Streamlit runs locally so maybe skipped, sticking to websafe) */
