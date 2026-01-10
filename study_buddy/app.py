@@ -6,6 +6,7 @@ import time
 import random
 import pytz
 import base64
+import os
 try:
     import extra_streamlit_components as stx # YENİ EKLENDİ
 except Exception:
@@ -28,16 +29,32 @@ except Exception:
 
     stx = _stx()
     st.warning("`extra_streamlit_components` not installed — using fallback cookie manager.\nInstall with: pip install extra-streamlit-components")
-# LOGO_URL was removed in favor of local file handling
-def get_base64_image(image_path):
-    with open(image_path, "rb") as img_file:
-        return base64.b64encode(img_file.read()).decode()
 
-logo_path = "logo.png"
+# LOGO HANDLING
+def get_base64_image(image_path):
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except FileNotFoundError:
+        return None
+
+# Construct absolute path to logo.png
+script_dir = os.path.dirname(os.path.abspath(__file__))
+logo_path = os.path.join(script_dir, "logo.png")
+
 logo_base64 = get_base64_image(logo_path)
-LOGO_DATA_URI = f"data:image/png;base64,{logo_base64}" 
+
+if logo_base64:
+    LOGO_DATA_URI = f"data:image/png;base64,{logo_base64}"
+    page_icon_target = logo_path
+else:
+    # FALLBACK to remote URL if local file is missing (e.g. not committed to git on Cloud)
+    LOGO_DATA_URI = "https://raw.githubusercontent.com/cgtyyldrm/anasayfa/main/assets/logo.PNG"
+    page_icon_target = LOGO_DATA_URI
+    print(f"Warning: Local logo not found at {logo_path}. Using remote fallback.")
+
 # --- 1. Sayfa ve Stil Ayarları ---
-st.set_page_config(page_title="Study Buddy", page_icon=logo_path, layout="wide")
+st.set_page_config(page_title="Study Buddy", page_icon=page_icon_target, layout="wide")
 # --- 1. Sayfa ve Stil Ayarları ---
 
 # --- IOS ANA EKRAN LOGOSU İÇİN ÖZEL KOD ---
