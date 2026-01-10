@@ -27,15 +27,12 @@ except Exception:
 
     stx = _stx()
     st.warning("`extra_streamlit_components` not installed — using fallback cookie manager.\nInstall with: pip install extra-streamlit-components")
-
+LOGO_URL = "https://raw.githubusercontent.com/cgtyyldrm/anasayfa/main/assets/logo.PNG" 
 # --- 1. Sayfa ve Stil Ayarları ---
-st.set_page_config(page_title="Study Buddy", page_icon="logo.png", layout="wide")
+st.set_page_config(page_title="Study Buddy", page_icon="LOGO_URL", layout="wide")
 # --- 1. Sayfa ve Stil Ayarları ---
 
 # --- IOS ANA EKRAN LOGOSU İÇİN ÖZEL KOD ---
-# BURAYA KOPYALADIĞIN GITHUB RAW LINKINI YAPIŞTIR:
-LOGO_URL = "https://raw.githubusercontent.com/cgtyyldrm/anasayfa/main/assets/logo.PNG" 
-
 st.markdown(
     f"""
     <style>
@@ -43,6 +40,8 @@ st.markdown(
     <link rel="apple-touch-icon" sizes="180x180" href="{LOGO_URL}">
     <link rel="icon" type="image/png" href="{LOGO_URL}">
     <link rel="shortcut icon" type="image/png" href="{LOGO_URL}">
+    <meta name="apple-mobile-web-app-title" content="Study Buddy">
+    <meta name="application-name" content="Study Buddy">
     """,
     unsafe_allow_html=True
 )
