@@ -8,7 +8,7 @@ import pytz
 import extra_streamlit_components as stx # YENİ EKLENDİ
 
 # --- 1. Sayfa ve Stil Ayarları ---
-st.set_page_config(page_title="Study Buddy", page_icon="📚", layout="wide")
+st.set_page_config(page_title="Study Buddy", page_icon="logo.png", layout="wide")
 # --- 1. Sayfa ve Stil Ayarları ---
 
 # --- IOS ANA EKRAN LOGOSU İÇİN ÖZEL KOD ---
