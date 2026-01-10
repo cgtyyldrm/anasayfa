@@ -5,6 +5,7 @@ import requests
 import time
 import random
 import pytz
+import base64
 try:
     import extra_streamlit_components as stx # YENİ EKLENDİ
 except Exception:
@@ -12,7 +13,7 @@ except Exception:
         def __init__(self):
             if "_cookies" not in st.session_state:
                 st.session_state["_cookies"] = {}
-        def get(self, cookie=None):
+        def get(self, cookiif st.e=None):
             return st.session_state.get("_cookies", {}).get(cookie)
         def set(self, cookie, value, expires_at=None):
             if "_cookies" not in st.session_state:
@@ -27,9 +28,16 @@ except Exception:
 
     stx = _stx()
     st.warning("`extra_streamlit_components` not installed — using fallback cookie manager.\nInstall with: pip install extra-streamlit-components")
-LOGO_URL = "https://raw.githubusercontent.com/cgtyyldrm/anasayfa/main/assets/logo.PNG" 
+# LOGO_URL was removed in favor of local file handling
+def get_base64_image(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+
+logo_path = "logo.png"
+logo_base64 = get_base64_image(logo_path)
+LOGO_DATA_URI = f"data:image/png;base64,{logo_base64}" 
 # --- 1. Sayfa ve Stil Ayarları ---
-st.set_page_config(page_title="Study Buddy", page_icon="LOGO_URL", layout="wide")
+st.set_page_config(page_title="Study Buddy", page_icon=logo_path, layout="wide")
 # --- 1. Sayfa ve Stil Ayarları ---
 
 # --- IOS ANA EKRAN LOGOSU İÇİN ÖZEL KOD ---
@@ -37,9 +45,9 @@ st.markdown(
     f"""
     <style>
     </style>
-    <link rel="apple-touch-icon" sizes="180x180" href="{LOGO_URL}">
-    <link rel="icon" type="image/png" href="{LOGO_URL}">
-    <link rel="shortcut icon" type="image/png" href="{LOGO_URL}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{LOGO_DATA_URI}">
+    <link rel="icon" type="image/png" href="{LOGO_DATA_URI}">
+    <link rel="shortcut icon" type="image/png" href="{LOGO_DATA_URI}">
     <meta name="apple-mobile-web-app-title" content="Study Buddy">
     <meta name="application-name" content="Study Buddy">
     """,
@@ -571,6 +579,7 @@ def main_app():
         task = st.session_state.current_task_info
         is_reading_mode = task.get('ders') == "Kitap Okuma"
         
+        remaining = 0
         # --- Wake Lock Injection for Mobile (Keep Screen On) ---
         # We inject this every rerun if timer is active to ensure lock is requested
         st.markdown("""
