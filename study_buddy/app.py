@@ -71,7 +71,48 @@ st.markdown(
     unsafe_allow_html=True
 )
 # -------------------------------------------
+# --- ANDROID & IOS EKRAN KORUMA SİSTEMİ (Mevcut tasarıma dokunmaz) ---
+st.markdown("""
+<script>
+    let wakeLock = null;
 
+    // 1. Ekran Kilidini İsteyen Fonksiyon
+    async function requestWakeLock() {
+        if ('wakeLock' in navigator) {
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                console.log('Ekran Kilidi: AKTİF');
+            } catch (err) {
+                console.log('Kilit Hatası:', err.name, err.message);
+            }
+        }
+    }
+
+    // 2. Android İçin Tetikleyici (Dokunma ile Kilidi Tazeler)
+    // Android Chrome, kullanıcı ekrana dokunmazsa kilidi bazen devreye sokmaz.
+    const reLock = async () => {
+        if (wakeLock === null && document.visibilityState === 'visible') {
+            await requestWakeLock();
+        }
+    };
+
+    // Kullanıcı ekrana her dokunduğunda veya kaydırdığında kilidi yenile
+    ['click', 'touchstart', 'scroll', 'keydown'].forEach(evt => 
+        document.addEventListener(evt, reLock, {passive: true})
+    );
+
+    // Sekme tekrar açıldığında (başka uygulamadan dönüldüğünde)
+    document.addEventListener('visibilitychange', async () => {
+        if (wakeLock !== null && document.visibilityState === 'visible') {
+            await requestWakeLock();
+        }
+    });
+
+    // İlk açılışta başlat
+    requestWakeLock();
+</script>
+""", unsafe_allow_html=True)
+# -------------------------------------------------------------------
 
 # --- Cookie Manager Kurulumu (Oturum Yönetimi) ---
 cookie_manager = stx.CookieManager()
@@ -482,23 +523,51 @@ def get_data():
         print(f"Hata: {e}")
         return pd.DataFrame()
 
+def get_remote_audio_base64(url):
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            b64 = base64.b64encode(response.content).decode()
+            return f"data:audio/mp3;base64,{b64}"
+    except: return None
+
+
 def add_task(tarih, kullanıcı, ders, konu):
     url = st.secrets["connections"]["webapp_url"]
     payload = {"action": "add", "tarih": str(tarih), "kullanici": kullanıcı, "ders": ders, "konu": konu, "durum": "Planlandı", "notlar": ""}
-    try: requests.post(url, json=payload)
-    except: pass
+    try: 
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code != 200:
+            st.error(f"Ekleme Hatası: {response.text}")
+        else:
+            # Check for generic script errors if returned as 200 JSON
+            try:
+                data = response.json()
+                if data.get("status") == "error":
+                     st.error(f"Sunucu Hatası: {data.get('message')}")
+            except: pass
+    except Exception as e: 
+         st.error(f"Bağlantı Hatası (Ekleme): {e}")
 
 def delete_task(row_index):
     url = st.secrets["connections"]["webapp_url"]
     payload = {"action": "delete", "rowIndex": row_index}
-    try: requests.post(url, json=payload)
-    except: pass
+    try: 
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code != 200:
+            st.error(f"Silme Hatası: {response.text}")
+    except Exception as e:
+         st.error(f"Bağlantı Hatası (Silme): {e}")
 
 def edit_task(row_index, tarih, ders, konu):
     url = st.secrets["connections"]["webapp_url"]
     payload = {"action": "edit", "rowIndex": row_index, "tarih": str(tarih), "ders": ders, "konu": konu}
-    try: requests.post(url, json=payload)
-    except: pass
+    try: 
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code != 200:
+            st.error(f"Düzenleme Hatası: {response.text}")
+    except Exception as e:
+         st.error(f"Bağlantı Hatası (Düzenleme): {e}")
 
 def update_task_progress(index, status, sure_saniye, dogru, yanlis, bos=0):
     url = st.secrets["connections"]["webapp_url"]
@@ -507,8 +576,19 @@ def update_task_progress(index, status, sure_saniye, dogru, yanlis, bos=0):
         "action": "complete", "rowIndex": index, "durum": status, 
         "sure": sure_saniye, "dogru": dogru, "yanlis": yanlis, "bos": bos, "toplam": toplam
     }
-    try: requests.post(url, json=payload)
-    except: pass
+    try: 
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code != 200:
+            st.error(f"Güncelleme Hatası: {response.text}")
+        else:
+             # Check JSON status
+            try:
+                data = response.json()
+                if data.get("status") == "error":
+                     st.error(f"Sunucu Hatası: {data.get('message')}")
+            except: pass
+    except Exception as e:
+         st.error(f"Bağlantı Hatası (Güncelleme): {e}")
 
 def log_task(tarih, kullanıcı, ders, konu, sure_saniye):
     url = st.secrets["connections"]["webapp_url"]
@@ -524,8 +604,21 @@ def log_task(tarih, kullanıcı, ders, konu, sure_saniye):
         "sure": sure_saniye,
         "dogru": 0, "yanlis": 0, "bos": 0, "toplam": 0
     }
-    try: requests.post(url, json=payload)
-    except: pass
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code != 200:
+             st.error(f"Log Hatası: {response.text}")
+        else:
+             # Check JSON
+            try:
+                data = response.json()
+                if data.get("status") == "error":
+                     st.error(f"Sunucu Hatası (Log): {data.get('message')}")
+                else:
+                     st.toast("Kayıt Başarılı!", icon="✅")
+            except: pass
+    except Exception as e:
+         st.error(f"Bağlantı Hatası (Log): {e}")
 
 def format_timer_display(seconds):
     mins, secs = divmod(int(seconds), 60)
@@ -551,6 +644,35 @@ def format_date_tr(d):
         0: "Pazartesi", 1: "Salı", 2: "Çarşamba", 3: "Perşembe", 4: "Cuma", 5: "Cumartesi", 6: "Pazar"
     }
     return f"{d.day} {months[d.month]} {d.year} {days[d.weekday()]}"
+
+def check_achievements(df, user, today):
+   user_df = df[df["Kullanıcı"] == user]
+   if user_df.empty: return []
+   
+   # Exclude today for historical stats
+   history = user_df[user_df["Tarih"] < today]
+   today_data = user_df[user_df["Tarih"] == today]
+   
+   if today_data.empty: return []
+   
+   achievements = []
+   today_total = today_data["Sure"].sum()
+   
+   # 1. Daily Average Beat
+   if not history.empty:
+       daily_sums = history.groupby("Tarih")["Sure"].sum()
+       avg_daily = daily_sums.mean()
+       
+       # Avoid celebrating trivial beating of 0 average
+       if avg_daily > 60 and today_total > avg_daily:
+           achievements.append(f"🚀 Harikasın {user}! Bugün ortalama performansının üzerindesin! (Ort: {format_text_duration(avg_daily)})")
+           
+       # 2. Record Breaker
+       max_daily = daily_sums.max()
+       if max_daily > 0 and today_total > max_daily:
+            achievements.append(f"🏆 YENİ REKOR! Bugüne kadarki en çok çalıştığın gün! ({format_text_duration(today_total)})")
+
+   return achievements
 
 # --- 7. ANA UYGULAMA ---
 def main_app():
@@ -627,7 +749,7 @@ def main_app():
                 
                 if not st.session_state.timer_running and st.session_state.timer_accumulated == 0:
                      st.info("Ne kadar kitap okuyacaksın?")
-                     dur = st.slider("Süre (Dakika)", 10, 60, 15, step=5)
+                     dur = st.slider("Süre (Dakika)", 1, 60, 15, step=5)
                      st.session_state.reading_duration = dur
                      # We use 'timer_accumulated' to store duration in seconds effectively or just logic below
                 
@@ -641,20 +763,64 @@ def main_app():
                 target_seconds = st.session_state.get("reading_duration", 15) * 60
                 remaining = max(0, target_seconds - total_elapsed)
                 
-                # Check Completion
+# --- SAYAÇ BİTİŞ: TİTREŞİM VE GÖRSEL UYARI ---
                 if remaining == 0 and st.session_state.timer_running:
                      st.session_state.timer_running = False
                      st.session_state.timer_accumulated = total_elapsed
-                     # AUDIO ALERT
-                     st.markdown("""
-                        <audio autoplay>
-                        <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
-                        </audio>
-                        """, unsafe_allow_html=True)
-                     st.success("Süre Doldu! 📚 Harika bir okuma saatiydi!")
+                     
+                     # 1. Standart Streamlit Uyarıları
                      st.balloons()
-                
+                     st.success("🎉 SÜRE DOLDU! Harikasın!")
+                     
+                     # 2. TİTREŞİM VE EKRAN FLAŞI (Javascript Enjeksiyonu)
+                     # Bu kod hem titreşimi tetikler hem de ekrana yanıp sönen bir katman ekler.
+                     js_alert = """
+                        <script>
+                            // 1. TİTREŞİM (Vibration API)
+                            // 500ms titret, 200ms bekle, 500ms titret... (SOS gibi)
+                            if (navigator.vibrate) {
+                                navigator.vibrate([500, 200, 500, 200, 1000]);
+                                console.log("Titreşim gönderildi.");
+                            }
+
+                            // 2. GÖRSEL FLAŞ (Visual Alert)
+                            // Sayfanın üzerine geçici bir katman ekleyip yanıp söndürelim
+                            var overlay = document.createElement('div');
+                            overlay.style.position = 'fixed';
+                            overlay.style.top = '0';
+                            overlay.style.left = '0';
+                            overlay.style.width = '100vw';
+                            overlay.style.height = '100vh';
+                            overlay.style.zIndex = '99999'; // En üstte dursun
+                            overlay.style.pointerEvents = 'none'; // Tıklamayı engellemesin
+                            overlay.style.backgroundColor = 'rgba(233, 30, 99, 0.5)'; // Pembe renk
+                            overlay.style.animation = 'flashAnimation 1s infinite'; // Yanıp sönme animasyonu
+                            document.body.appendChild(overlay);
+
+                            // Animasyon stilini ekle
+                            var style = document.createElement('style');
+                            style.innerHTML = `
+                                @keyframes flashAnimation {
+                                    0% { background-color: rgba(233, 30, 99, 0.0); }
+                                    50% { background-color: rgba(233, 30, 99, 0.6); } // Yarım şeffaf pembe
+                                    100% { background-color: rgba(233, 30, 99, 0.0); }
+                                }
+                            `;
+                            document.head.appendChild(style);
+
+                            // 5 Saniye sonra flaşı otomatik kaldır (Sonsuza kadar yanmasın)
+                            setTimeout(() => {
+                                document.body.removeChild(overlay);
+                            }, 5000);
+                        </script>
+                     """
+                     st.markdown(js_alert, unsafe_allow_html=True)
+                     
+                     # Ekstra: Kullanıcı sayfada değilse (başka sekmedeyse) sekme başlığı yanıp sönsün
+                     st.toast("⏰ SÜRE DOLDU!", icon="🚨")
+                     
                 st.markdown(f"<div style='text-align: center; font-size: 80px; color: #D81B60;' class='timer-font'>{format_timer_display(remaining)}</div>", unsafe_allow_html=True)
+
                 
                 # Reading Mode doesn't use Dogru/Yanlis usually, just Time.
                 # Assuming simple completion.
@@ -700,7 +866,11 @@ def main_app():
             with col_btn2:
                 # Finish Logic
                 finish_label = "🏁 Bitir"
-                if is_reading_mode: finish_label = "✅ Okumayı Bitir"
+                if is_reading_mode: 
+                    if remaining == 0 and st.session_state.timer_accumulated > 0:
+                        finish_label = "✅ SÜRE BİTTİ - KAYDET VE BİTİR"
+                    else:
+                        finish_label = "✅ Okumayı Bitir"
                 
                 if st.button(finish_label, type="primary", use_container_width=True):
                     final_sec = st.session_state.timer_accumulated + (time.time() - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
@@ -804,6 +974,36 @@ def main_app():
         elif period == "Aylık":
             dashboard_data = filtered_df[pd.to_datetime(filtered_df["Tarih"]).apply(lambda x: x.month == dashboard_date.month and x.year == dashboard_date.year)]
             metric_label = "Seçilen Ay"
+
+        # --- MOTIVATIONAL MESSAGES ---
+        if active_student_filter and period == "Günlük" and dashboard_date == today:
+            achievements = check_achievements(filtered_df, active_student_filter, today)
+            if achievements:
+                for msg in achievements:
+                    st.markdown(f"""
+                    <div style="
+                        background: linear-gradient(45deg, #F8BBD0, #F48FB1);
+                        padding: 15px;
+                        border-radius: 10px;
+                        color: #880E4F;
+                        font-weight: bold;
+                        margin-bottom: 20px;
+                        text-align: center;
+                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                        border: 2px solid #EC407A;
+                        animation: pulse 2s infinite;
+                    ">
+                    {msg}
+                    </div>
+                    <style>
+                        @keyframes pulse {{
+                            0% {{ box-shadow: 0 0 0 0 rgba(233, 30, 99, 0.4); }}
+                            70% {{ box-shadow: 0 0 0 10px rgba(233, 30, 99, 0); }}
+                            100% {{ box-shadow: 0 0 0 0 rgba(233, 30, 99, 0); }}
+                        }}
+                    </style>
+                    """, unsafe_allow_html=True)
+                    st.balloons()
 
         total_time = format_text_duration(dashboard_data["Sure"].sum())
         total_questions = dashboard_data["Toplam"].sum()
