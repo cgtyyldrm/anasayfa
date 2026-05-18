@@ -7,6 +7,8 @@ import random
 import pytz
 import base64
 import os
+import json
+
 try:
     import extra_streamlit_components as stx # YENİ EKLENDİ
 except Exception:
@@ -487,6 +489,25 @@ def login_screen():
                     else:
                         st.error("Hatalı giriş bilgileri.")
 
+# --- SETTINGS MANAGEMENT ---
+SETTINGS_FILE = os.path.join(script_dir, "user_settings.json")
+
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_settings(settings):
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        st.error(f"Ayarlar kaydedilemedi: {e}")
+
 # --- 5. Veri İşlemleri (API) ---
 def get_data():
     if "connections" not in st.secrets: return pd.DataFrame()
@@ -590,8 +611,9 @@ def update_task_progress(index, status, sure_saniye, dogru, yanlis, bos=0):
     except Exception as e:
          st.error(f"Bağlantı Hatası (Güncelleme): {e}")
 
-def log_task(tarih, kullanıcı, ders, konu, sure_saniye):
+def log_task(tarih, kullanıcı, ders, konu, sure_saniye, dogru=0, yanlis=0, bos=0, notlar="Okuma Seansı"):
     url = st.secrets["connections"]["webapp_url"]
+    toplam = dogru + yanlis + bos
     # Log directly as "Tamamlandı" with duration
     payload = {
         "action": "add", 
@@ -600,9 +622,9 @@ def log_task(tarih, kullanıcı, ders, konu, sure_saniye):
         "ders": ders, 
         "konu": konu, 
         "durum": "Tamamlandı", 
-        "notlar": "Okuma Seansı",
+        "notlar": notlar,
         "sure": sure_saniye,
-        "dogru": 0, "yanlis": 0, "bos": 0, "toplam": 0
+        "dogru": dogru, "yanlis": yanlis, "bos": bos, "toplam": toplam
     }
     try:
         response = requests.post(url, json=payload, timeout=10)
@@ -717,6 +739,7 @@ def main_app():
     if st.session_state.timer_active:
         task = st.session_state.current_task_info
         is_reading_mode = task.get('ders') == "Kitap Okuma"
+        is_countdown_mode = task.get('is_countdown', False)
         
         remaining = 0
         # --- Wake Lock Injection for Mobile (Keep Screen On) ---
@@ -741,26 +764,21 @@ def main_app():
 
             current_time = time.time()
             
-            # --- READING MODE SPECIFIC LOGIC ---
-            if is_reading_mode:
-                # Initialize Reading Duration Selection if not set
-                if "reading_duration" not in st.session_state:
-                    st.session_state.reading_duration = 15 # Default
+            # --- READING/COUNTDOWN MODE SPECIFIC LOGIC ---
+            if is_reading_mode or is_countdown_mode:
+                if is_reading_mode:
+                    if "reading_duration" not in st.session_state:
+                        st.session_state.reading_duration = 15 # Default
+                    if not st.session_state.timer_running and st.session_state.timer_accumulated == 0:
+                         st.info("Ne kadar kitap okuyacaksın?")
+                         dur = st.slider("Süre (Dakika)", 5, 60, 15, step=5)
+                         st.session_state.reading_duration = dur
+                    target_seconds = st.session_state.get("reading_duration", 15) * 60
+                else:
+                    target_seconds = task.get("target_duration", 15) * 60
                 
-                if not st.session_state.timer_running and st.session_state.timer_accumulated == 0:
-                     st.info("Ne kadar kitap okuyacaksın?")
-                     dur = st.slider("Süre (Dakika)", 5, 60, 15, step=5)
-                     st.session_state.reading_duration = dur
-                     # We use 'timer_accumulated' to store duration in seconds effectively or just logic below
-                
-                # Logic: Timer counts DOWN from Target
-                # elapsed is how much time passed since start
                 elapsed_since_start = (current_time - st.session_state.timer_start_time) if st.session_state.timer_running else 0
                 total_elapsed = st.session_state.timer_accumulated + elapsed_since_start
-                
-                # But for reading, we want countdown. 
-                # Let's say target is X mins. Remaining = X*60 - total_elapsed
-                target_seconds = st.session_state.get("reading_duration", 15) * 60
                 remaining = max(0, target_seconds - total_elapsed)
                 
 # --- SAYAÇ BİTİŞ: TİTREŞİM VE GÖRSEL UYARI ---
@@ -768,62 +786,45 @@ def main_app():
                      st.session_state.timer_running = False
                      st.session_state.timer_accumulated = total_elapsed
                      
-                     # 1. Standart Streamlit Uyarıları
                      st.balloons()
                      st.success("🎉 SÜRE DOLDU! Harikasın!")
                      
-                     # 2. TİTREŞİM VE EKRAN FLAŞI (Javascript Enjeksiyonu)
-                     # Bu kod hem titreşimi tetikler hem de ekrana yanıp sönen bir katman ekler.
                      js_alert = """
                         <script>
-                            // 1. TİTREŞİM (Vibration API)
-                            // 500ms titret, 200ms bekle, 500ms titret... (SOS gibi)
                             if (navigator.vibrate) {
                                 navigator.vibrate([500, 200, 500, 200, 1000]);
-                                console.log("Titreşim gönderildi.");
                             }
-
-                            // 2. GÖRSEL FLAŞ (Visual Alert)
-                            // Sayfanın üzerine geçici bir katman ekleyip yanıp söndürelim
                             var overlay = document.createElement('div');
                             overlay.style.position = 'fixed';
                             overlay.style.top = '0';
                             overlay.style.left = '0';
                             overlay.style.width = '100vw';
                             overlay.style.height = '100vh';
-                            overlay.style.zIndex = '99999'; // En üstte dursun
-                            overlay.style.pointerEvents = 'none'; // Tıklamayı engellemesin
-                            overlay.style.backgroundColor = 'rgba(233, 30, 99, 0.5)'; // Pembe renk
-                            overlay.style.animation = 'flashAnimation 1s infinite'; // Yanıp sönme animasyonu
+                            overlay.style.zIndex = '99999';
+                            overlay.style.pointerEvents = 'none';
+                            overlay.style.backgroundColor = 'rgba(233, 30, 99, 0.5)';
+                            overlay.style.animation = 'flashAnimation 1s infinite';
                             document.body.appendChild(overlay);
 
-                            // Animasyon stilini ekle
                             var style = document.createElement('style');
                             style.innerHTML = `
                                 @keyframes flashAnimation {
                                     0% { background-color: rgba(233, 30, 99, 0.0); }
-                                    50% { background-color: rgba(233, 30, 99, 0.6); } // Yarım şeffaf pembe
+                                    50% { background-color: rgba(233, 30, 99, 0.6); }
                                     100% { background-color: rgba(233, 30, 99, 0.0); }
                                 }
                             `;
                             document.head.appendChild(style);
 
-                            // 5 Saniye sonra flaşı otomatik kaldır (Sonsuza kadar yanmasın)
                             setTimeout(() => {
                                 document.body.removeChild(overlay);
                             }, 5000);
                         </script>
                      """
                      st.markdown(js_alert, unsafe_allow_html=True)
-                     
-                     # Ekstra: Kullanıcı sayfada değilse (başka sekmedeyse) sekme başlığı yanıp sönsün
                      st.toast("⏰ SÜRE DOLDU!", icon="🚨")
                      
                 st.markdown(f"<div style='text-align: center; font-size: 80px; color: #D81B60;' class='timer-font'>{format_timer_display(remaining)}</div>", unsafe_allow_html=True)
-
-                
-                # Reading Mode doesn't use Dogru/Yanlis usually, just Time.
-                # Assuming simple completion.
                 
             else:
                 # --- STANDARD MODE (Stopwatch) ---
@@ -855,7 +856,7 @@ def main_app():
                         st.rerun()
                 else:
                     btn_text = "▶️ Başla" if st.session_state.timer_accumulated == 0 else "▶️ Devam Et"
-                    if remaining == 0 and is_reading_mode and st.session_state.timer_accumulated > 0:
+                    if remaining == 0 and (is_reading_mode or is_countdown_mode) and st.session_state.timer_accumulated > 0:
                          pass # Completed, don't show Resume
                     else:
                         if st.button(btn_text, type="primary", use_container_width=True):
@@ -866,11 +867,13 @@ def main_app():
             with col_btn2:
                 # Finish Logic
                 finish_label = "🏁 Bitir"
-                if is_reading_mode: 
+                if is_reading_mode or is_countdown_mode: 
                     if remaining == 0 and st.session_state.timer_accumulated > 0:
                         finish_label = "✅ SÜRE BİTTİ - KAYDET VE BİTİR"
-                    else:
+                    elif is_reading_mode:
                         finish_label = "✅ Okumayı Bitir"
+                    else:
+                        finish_label = "🏁 Testi Bitir"
                 
                 if st.button(finish_label, type="primary", use_container_width=True):
                     final_sec = st.session_state.timer_accumulated + (time.time() - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
@@ -878,9 +881,16 @@ def main_app():
                     if task.get("is_reading_session", False):
                          # Direct Log for Library Session
                          log_task(today, user, task['ders'], task['konu'], int(final_sec))
+                    elif task.get("is_countdown", False):
+                         log_task(today, user, task['ders'], task['konu'], int(final_sec), st.session_state.temp_dogru, st.session_state.temp_yanlis, st.session_state.temp_bos, "Süreli Soru")
                     else:
                         # Update Task Progress for Normal Tasks
                         update_task_progress(task['index'], "Tamamlandı", int(final_sec), st.session_state.temp_dogru, st.session_state.temp_yanlis, st.session_state.temp_bos)
+                    
+                    if task.get("ders") != "Kitap Okuma":
+                         added_qs = st.session_state.temp_dogru + st.session_state.temp_yanlis + st.session_state.temp_bos
+                         if added_qs > 0:
+                             st.session_state.check_goal_progress = True
                     
                     st.session_state.timer_active = False
                     st.session_state.timer_running = False
@@ -893,7 +903,7 @@ def main_app():
 
             st.write("")
             # Save for Later (Not relevant for Reading Mode usually, but kept for consistency)
-            if not is_reading_mode and st.button("💾 Kaydet ve Çık (Bitmedi)", use_container_width=True):
+            if not is_reading_mode and not is_countdown_mode and st.button("💾 Kaydet ve Çık (Bitmedi)", use_container_width=True):
                 final_sec = st.session_state.timer_accumulated + (time.time() - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
                 update_task_progress(task['index'], "Beklemede", int(final_sec), st.session_state.temp_dogru, st.session_state.temp_yanlis, st.session_state.temp_bos)
                 st.session_state.timer_active = False
@@ -903,9 +913,12 @@ def main_app():
                 st.session_state.temp_yanlis = 0
                 st.session_state.temp_bos = 0
                 st.rerun()
-            elif is_reading_mode and st.button("🔙 İptal / Çık", use_container_width=True):
+            elif (is_reading_mode or is_countdown_mode) and st.button("🔙 İptal / Çık", use_container_width=True):
                  st.session_state.timer_active = False
                  st.session_state.timer_running = False
+                 st.session_state.temp_dogru = 0
+                 st.session_state.temp_yanlis = 0
+                 st.session_state.temp_bos = 0
                  if "reading_duration" in st.session_state: del st.session_state.reading_duration
                  st.rerun()
 
@@ -915,6 +928,26 @@ def main_app():
     # --- ANA SAYFA ---
     st.markdown('<div class="main-title">Study Buddy</div>', unsafe_allow_html=True)
     df = get_data()
+
+    if st.session_state.get("check_goal_progress", False):
+        st.session_state.check_goal_progress = False
+        user_settings = load_settings()
+        my_settings = user_settings.get(user, None)
+        if my_settings and not df.empty:
+            if my_settings["type"] == "Haftalık":
+                start_date = today - timedelta(days=today.weekday())
+                end_date = start_date + timedelta(days=6)
+                goal_data = df[(df["Kullanıcı"] == user) & (df["Ders"] != "Kitap Okuma") & (pd.to_datetime(df["Tarih"]).dt.date >= start_date) & (pd.to_datetime(df["Tarih"]).dt.date <= end_date)]
+            else:
+                goal_data = df[(df["Kullanıcı"] == user) & (df["Ders"] != "Kitap Okuma") & (pd.to_datetime(df["Tarih"]).dt.month == today.month) & (pd.to_datetime(df["Tarih"]).dt.year == today.year)]
+            current_total = goal_data["Toplam"].sum()
+            target = my_settings["target"]
+            if current_total >= target:
+                st.toast(f"🎉 TEBRİKLER! {my_settings['type']} hedefin olan {target} soruya ulaştın!", icon="🏆")
+                st.balloons()
+            else:
+                kalan = target - current_total
+                st.toast(f"Harika gidiyorsun! {my_settings['type']} hedefine ulaşmak için son {kalan} soru kaldı! 💪", icon="🎯")
 
     active_student_filter = user 
     
@@ -1298,7 +1331,7 @@ localElements.forEach(el => {{
 
     else:
         # --- ÖĞRENCİ GÖRÜNÜMÜ ---
-        tab1, tab2, tab3, tab4 = st.tabs(["📝 Görevlerim", "📚 Kitaplığım", "➕ Serbest Çalışma", "📈 İstatistiklerim"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Görevlerim", "📚 Kitaplığım", "➕ Serbest Çalışma", "⏳ Süreli Soru", "📈 İstatistiklerim"])
         
         with tab1:
             # Ribbon style title for Student
@@ -1430,6 +1463,70 @@ localElements.forEach(el => {{
                         st.rerun()
 
         with tab4:
+            st.subheader("⏳ Süreli Soru Çözümü")
+            st.markdown("Hedef bir süre belirle ve geri sayım ile teste başla! 🎯")
+            
+            with st.container(border=True):
+                with st.form("countdown_test_form"):
+                    cd_ders = st.selectbox("Hangi Ders?", 
+                                           ["Matematik", "Fen", "Türkçe", "Sosyal", "Hayat Bilgisi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Diğer"], key="cd_ders")
+                    cd_konu = st.text_input("Konu (Örn: Deneme Sınavı)", placeholder="Deneme Sınavı")
+                    cd_sure = st.number_input("Hedef Süre (Dakika)", min_value=1, max_value=180, value=40, step=5)
+                    
+                    if not cd_konu:
+                        cd_konu = "Süreli Test"
+                        
+                    if st.form_submit_button("⏳ Geri Sayımı Başlat", type="primary", use_container_width=True):
+                         st.session_state.timer_active = True
+                         st.session_state.timer_running = False # Başla butonuna basılana kadar bekle
+                         st.session_state.timer_start_time = None
+                         st.session_state.timer_accumulated = 0
+                         st.session_state.temp_dogru = 0
+                         st.session_state.temp_yanlis = 0
+                         st.session_state.temp_bos = 0
+                         st.session_state.current_task_info = {
+                             "ders": cd_ders, 
+                             "konu": cd_konu, 
+                             "is_countdown": True,
+                             "target_duration": cd_sure
+                         }
+                         st.rerun()
+
+        with tab5:
+            st.subheader("🎯 Hedefim")
+            user_settings = load_settings()
+            my_settings = user_settings.get(user, {"type": "Haftalık", "target": 500})
+            
+            with st.container(border=True):
+                with st.form("goal_form"):
+                    g_type = st.radio("Hedef Türü", ["Haftalık", "Aylık"], index=0 if my_settings["type"] == "Haftalık" else 1, horizontal=True)
+                    g_target = st.number_input("Soru Sayısı Hedefi", min_value=10, max_value=10000, value=my_settings["target"], step=50)
+                    if st.form_submit_button("💾 Hedefi Kaydet", type="primary", use_container_width=True):
+                        user_settings[user] = {"type": g_type, "target": g_target}
+                        save_settings(user_settings)
+                        st.success("Hedefin başarıyla kaydedildi! 🎯")
+                        time.sleep(1)
+                        st.rerun()
+            
+            if my_settings["type"] == "Haftalık":
+                start_date = today - timedelta(days=today.weekday())
+                end_date = start_date + timedelta(days=6)
+                goal_data = df[(df["Kullanıcı"] == user) & (df["Ders"] != "Kitap Okuma") & (pd.to_datetime(df["Tarih"]).dt.date >= start_date) & (pd.to_datetime(df["Tarih"]).dt.date <= end_date)]
+            else:
+                goal_data = df[(df["Kullanıcı"] == user) & (df["Ders"] != "Kitap Okuma") & (pd.to_datetime(df["Tarih"]).dt.month == today.month) & (pd.to_datetime(df["Tarih"]).dt.year == today.year)]
+            
+            current_total = goal_data["Toplam"].sum() if not goal_data.empty else 0
+            target = my_settings["target"]
+            progress_ratio = min(current_total / target, 1.0) if target > 0 else 0
+            
+            st.markdown(f"**{my_settings['type']} Hedef Durumu:** {current_total} / {target} Soru")
+            st.progress(progress_ratio)
+            if current_total >= target:
+                 st.success("🎉 Hedefine ulaştın! Harikasın!")
+            else:
+                 st.info(f"Hedefine ulaşmak için {target - current_total} soru kaldı. Yapabilirsin! 💪")
+
+            st.write("---")
             st.subheader("📚 Okuma İstatistikleri")
             reading_df = df[(df["Kullanıcı"] == user) & (df["Ders"] == "Kitap Okuma")]
             
