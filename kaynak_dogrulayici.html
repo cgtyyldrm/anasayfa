@@ -217,6 +217,25 @@ function benzerlik(a,b){
   let o=0; A.forEach(x=>{ if(B.has(x)) o++; });
   return o/new Set([...A,...B]).size;
 }
+function soyadNormal(ad){
+  const a=String(ad||"").trim();
+  // "González-García, Sara" -> virgulden onceki kisim zaten tam soyaddir
+  if(a.includes(",")) return sadelestir(a.split(",")[0]);
+  // "Sara González-García" -> son sozcuk; onunde van/de/da gibi on ek varsa o da dahil
+  const t=a.split(/\s+/).filter(Boolean);
+  if(!t.length) return "";
+  let i=t.length-1;
+  while(i>0&&PARCACIK.has(sadelestir(t[i-1]))) i--;
+  return sadelestir(t.slice(i).join(" "));   // tire sadelestirmede boslugua doner, anahtar onu siler
+}
+// karsilastirma anahtari: bosluk ve tire silinir -> "gonzalez garcia" = "gonzalezgarcia"
+const soyadAnahtar=x=>sadelestir(String(x||"")).replace(/\s+/g,"");
+// biri digerinin sonuna denk geliyorsa ayni soyad sayilir (kismi kayitlara tolerans)
+function soyadEsit(a,b){
+  a=soyadAnahtar(a); b=soyadAnahtar(b);
+  if(!a||!b) return false;
+  return a===b||(a.length>4&&b.endsWith(a))||(b.length>4&&a.endsWith(b));
+}
 function soyadCikar(t){
   const p=sadelestir(t).split(" ").filter(Boolean);
   if(!p.length) return "";
@@ -281,7 +300,7 @@ async function crossref(k){
     "&select=title,author,container-title,volume,issue,page,published,DOI&query.bibliographic="+encodeURIComponent(q));
   if(!d||!d.message||!d.message.items) return [];
   return d.message.items.map(it=>({kaynak:"Crossref",baslik:(it.title||[""])[0],
-    yazarlar:(it.author||[]).map(a=>a.family).filter(Boolean).map(sadelestir),
+    yazarlar:(it.author||[]).map(a=>a.family).filter(Boolean).map(soyadNormal),
     yil:((it.published&&it.published["date-parts"])||[[null]])[0][0],
     dergi:(it["container-title"]||[""])[0],cilt:it.volume,sayi:it.issue,sayfa:it.page,
     yayinci:null,kimlik:it.DOI||""}));
@@ -292,7 +311,7 @@ async function openalex(k){
   if(!d||!d.results) return [];
   return d.results.map(it=>{ const b=it.biblio||{};
     return {kaynak:"OpenAlex",baslik:it.display_name||"",
-      yazarlar:(it.authorships||[]).map(a=>soyadCikar((a.author&&a.author.display_name)||"")).filter(Boolean),
+      yazarlar:(it.authorships||[]).map(a=>soyadNormal((a.author&&a.author.display_name)||"")).filter(Boolean),
       yil:it.publication_year,
       dergi:(it.primary_location&&it.primary_location.source&&it.primary_location.source.display_name)||null,
       cilt:b.volume||null,sayi:b.issue||null,
@@ -305,9 +324,11 @@ async function openaire(k){
   if(!d) return [];
   const kay=derinBul(d,"result").flat();
   return kay.slice(0,5).map(r=>{
-    const bas=derinBul(r,"title").map(duz).filter(x=>x.length>15);
+    // baslik alani birden cok varyant icerebilir; en kisa anlamli olani alinir
+    const bas=derinBul(r,"title").map(x=>Array.isArray(x)?duz(x[0]):duz(x))
+                .filter(x=>x.length>15).sort((a,b)=>a.length-b.length);
     if(!bas.length) return null;
-    const yz=derinBul(r,"creator").flat().map(x=>soyadCikar(duz(x).replace(/,/g," "))).filter(Boolean);
+    const yz=derinBul(r,"creator").flat().map(x=>soyadNormal(duz(x))).filter(Boolean);
     let yil=null;
     for(const t of derinBul(r,"dateofacceptance")){ const mm=duz(t).match(/(\d{4})/); if(mm){yil=+mm[1];break;} }
     return {kaynak:"OpenAIRE",baslik:bas[0],yazarlar:yz.slice(0,20),yil,dergi:null,cilt:null,sayi:null,sayfa:null,
@@ -321,7 +342,7 @@ async function datacite(k){
   if(!d||!d.data) return [];
   return d.data.map(it=>{ const a=it.attributes||{};
     return {kaynak:"DataCite",baslik:(a.titles||[{}])[0].title||"",
-      yazarlar:(a.creators||[]).map(c=>soyadCikar(c.familyName||(c.name||"").replace(/,/g," "))).filter(Boolean),
+      yazarlar:(a.creators||[]).map(c=>soyadNormal(c.familyName||c.name||"")).filter(Boolean),
       yil:a.publicationYear,dergi:null,cilt:null,sayi:null,sayfa:null,yayinci:a.publisher,kimlik:a.doi||""};});
 }
 async function googlebooks(k){
@@ -340,7 +361,7 @@ async function googlebooks(k){
   if(!d||!d.items) return [];
   return d.items.map(it=>{ const v=it.volumeInfo||{}; const mm=(v.publishedDate||"").match(/(\d{4})/);
     return {kaynak:"Google Books",baslik:(v.title||"")+(v.subtitle?": "+v.subtitle:""),
-      yazarlar:(v.authors||[]).map(soyadCikar),yil:mm?+mm[1]:null,
+      yazarlar:(v.authors||[]).map(soyadNormal),yil:mm?+mm[1]:null,
       dergi:null,cilt:null,sayi:null,sayfa:null,yayinci:v.publisher||null,
       kimlik:((v.industryIdentifiers||[{}])[0]||{}).identifier||""};});
 }
@@ -355,7 +376,7 @@ async function openlibrary(k){
   }
   if(!d||!d.docs) return [];
   return d.docs.map(it=>({kaynak:"OpenLibrary",baslik:it.title||"",
-    yazarlar:(it.author_name||[]).map(soyadCikar),yil:it.first_publish_year,
+    yazarlar:(it.author_name||[]).map(soyadNormal),yil:it.first_publish_year,
     dergi:null,cilt:null,sayi:null,sayfa:null,yayinci:(it.publisher||[])[0]||null,kimlik:it.key||""}));
 }
 function enIyi(k,adaylar){
@@ -365,8 +386,8 @@ function enIyi(k,adaylar){
     let s=benzerlik(baslikTemiz(k.baslik),baslikTemiz(it.baslik));
     if(it.yil&&Math.abs(it.yil-k.yil)<=1) s+=0.15;
     if(it.yazarlar&&it.yazarlar.length&&k.yazarlar.length){
-      const ilk=sadelestir(soyadCikar(k.yazarlar[0]));
-      if(ilk&&it.yazarlar.some(x=>sadelestir(String(x)).indexOf(ilk)>=0)) s+=0.12;
+      const ilk=k.yazarlar[0];
+      if(ilk&&it.yazarlar.some(x=>soyadEsit(ilk,x))) s+=0.12;
     }
     if(s>skor){en=it;skor=s;}
   }
@@ -380,11 +401,13 @@ function denetle(k,it){
   if(it.yil&&it.yil!==k.yil&&yilAtla) f.push("Yıl (bilgi): OpenLibrary ilk baskıyı ("+it.yil+") gösterir; baskı yılınız "+k.yil);
   if(k.ucnokta) f.push("Künyede üç nokta (…) var — APA 7'de 20 yazara kadar hepsi yazılır");
   if(it.yazarlar&&it.yazarlar.length){
-    const kay=new Set(it.yazarlar.map(x=>sadelestir(String(x))).filter(Boolean));
-    const tez=new Set(k.yazarlar.map(x=>sadelestir(soyadCikar(x))).filter(Boolean));
+    // tez kunyesindeki adlar zaten soyaddir; kaynaktan gelenler tam ad olabilir
+    const kay=[...new Set(it.yazarlar.map(x=>soyadNormal(x)).filter(Boolean))];
+    const tez=[...new Set(k.yazarlar.map(x=>soyadNormal(x)).filter(Boolean))];
     if(it.yazarlar.length!==k.yazarlar.length&&!k.ucnokta)
       f.push("Yazar sayısı: tezde "+k.yazarlar.length+" · "+it.kaynak+" "+it.yazarlar.length);
-    const eksik=[...kay].filter(x=>!tez.has(x)), fazla=[...tez].filter(x=>!kay.has(x));
+    const eksik=kay.filter(x=>!tez.some(y=>soyadEsit(x,y)));
+    const fazla=tez.filter(x=>!kay.some(y=>soyadEsit(x,y)));
     if(eksik.length) f.push("Tezde olmayan yazar: "+eksik.join(", "));
     if(fazla.length) f.push("Kaynakta olmayan yazar: "+fazla.join(", "));
   }
