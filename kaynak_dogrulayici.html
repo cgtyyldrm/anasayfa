@@ -217,6 +217,13 @@ function benzerlik(a,b){
   let o=0; A.forEach(x=>{ if(B.has(x)) o++; });
   return o/new Set([...A,...B]).size;
 }
+const KURUM_IZ=/(institute|institution|panel|organi[sz]ation|council|agency|department|ministry|university|commission|nations|association|society|centre|center|bureau|foundation|programme|program|authority|world|european|national|international|müdürlüğü|bakanlığı|başkanlığı|enstitü|üniversite|kurumu|kurulu|derneği|birliği|genel)/i;
+function kurumsalYazar(k){
+  // "IPCC", "TAGEM", "World Resources Institute" gibi kurumsal yazarlarda
+  // kisi adi karsilastirmasi anlamsizdir
+  return k.yazarlar.some(a=>KURUM_IZ.test(a)&&String(a).trim().split(/\s+/).length>=2)
+      || /\([A-ZÇĞİÖŞÜ]{2,8}\)\.?\s*\(\d{4}/.test(k.ham);
+}
 function soyadNormal(ad){
   const a=String(ad||"").trim();
   // "González-García, Sara" -> virgulden onceki kisim zaten tam soyaddir
@@ -394,33 +401,35 @@ function enIyi(k,adaylar){
   return skor>=esik?en:null;
 }
 function denetle(k,it){
-  const f=[];
+  const f=[],n=[];   // f = gercek fark, n = bilgi notu
   // OpenLibrary "ilk baski" yilini verir; cok baskili kitaplarda bu fark yaniltici olur
   const yilAtla=(k.tur==="kitap"&&it.kaynak==="OpenLibrary");
-  if(it.yil&&it.yil!==k.yil&&!yilAtla) f.push("Yıl: tezde "+k.yil+" · "+it.kaynak+" "+it.yil);
-  if(it.yil&&it.yil!==k.yil&&yilAtla) f.push("Yıl (bilgi): OpenLibrary ilk baskıyı ("+it.yil+") gösterir; baskı yılınız "+k.yil);
+  if(it.yil&&it.yil!==k.yil&&!yilAtla) f.push("Yıl: künyede "+k.yil+" · "+it.kaynak+" "+it.yil);
+  if(it.yil&&it.yil!==k.yil&&yilAtla) n.push("OpenLibrary ilk baskıyı ("+it.yil+") gösterir; sizin baskınız "+k.yil+".");
   if(k.ucnokta) f.push("Künyede üç nokta (…) var — APA 7'de 20 yazara kadar hepsi yazılır");
-  if(it.yazarlar&&it.yazarlar.length){
+  if(it.yazarlar&&it.yazarlar.length&&kurumsalYazar(k)){
+    n.push("Kurumsal yazar; kaynak kişisel yazarları listelediği için yazar karşılaştırması yapılmadı.");
+  } else if(it.yazarlar&&it.yazarlar.length){
     // tez kunyesindeki adlar zaten soyaddir; kaynaktan gelenler tam ad olabilir
     const kay=[...new Set(it.yazarlar.map(x=>soyadNormal(x)).filter(Boolean))];
     const tez=[...new Set(k.yazarlar.map(x=>soyadNormal(x)).filter(Boolean))];
     if(it.yazarlar.length!==k.yazarlar.length&&!k.ucnokta)
-      f.push("Yazar sayısı: tezde "+k.yazarlar.length+" · "+it.kaynak+" "+it.yazarlar.length);
+      f.push("Yazar sayısı: künyede "+k.yazarlar.length+" · "+it.kaynak+" "+it.yazarlar.length);
     const eksik=kay.filter(x=>!tez.some(y=>soyadEsit(x,y)));
     const fazla=tez.filter(x=>!kay.some(y=>soyadEsit(x,y)));
-    if(eksik.length) f.push("Tezde olmayan yazar: "+eksik.join(", "));
-    if(fazla.length) f.push("Kaynakta olmayan yazar: "+fazla.join(", "));
+    if(eksik.length) f.push("Künyenizde eksik yazar: "+eksik.join(", "));
+    if(fazla.length) f.push("Veri tabanında bulunmayan yazar: "+fazla.join(", "));
   }
-  if(k.dergi&&it.dergi&&benzerlik(k.dergi,it.dergi)<0.6) f.push('Dergi: tezde "'+k.dergi+'" · '+it.kaynak+' "'+it.dergi+'"');
-  if(k.cilt&&it.cilt&&k.cilt!==String(it.cilt)) f.push("Cilt: tezde "+k.cilt+" · "+it.kaynak+" "+it.cilt);
-  if(k.sayi&&it.sayi&&k.sayi!==String(it.sayi)) f.push("Sayı: tezde "+k.sayi+" · "+it.kaynak+" "+it.sayi);
+  if(k.dergi&&it.dergi&&benzerlik(k.dergi,it.dergi)<0.6) f.push('Dergi: künyede "'+k.dergi+'" · '+it.kaynak+' "'+it.dergi+'"');
+  if(k.cilt&&it.cilt&&k.cilt!==String(it.cilt)) f.push("Cilt: künyede "+k.cilt+" · "+it.kaynak+" "+it.cilt);
+  if(k.sayi&&it.sayi&&k.sayi!==String(it.sayi)) f.push("Sayı: künyede "+k.sayi+" · "+it.kaynak+" "+it.sayi);
   if(k.sayfa&&it.sayfa){
     const n=s=>String(s).toLowerCase().replace(/[^0-9a-z]/g,"");
-    if(n(k.sayfa)!==n(it.sayfa)) f.push("Sayfa: tezde "+k.sayfa+" · "+it.kaynak+" "+it.sayfa);
+    if(n(k.sayfa)!==n(it.sayfa)) f.push("Sayfa: künyede "+k.sayfa+" · "+it.kaynak+" "+it.sayfa);
   }
   if(benzerlik(baslikTemiz(k.baslik),baslikTemiz(it.baslik))<0.75)
-    f.push('Başlık: tezde "'+k.baslik.slice(0,60)+'…" · '+it.kaynak+' "'+it.baslik.slice(0,60)+'…"');
-  return f;
+    f.push('Başlık: künyede "'+k.baslik.slice(0,60)+'…" · '+it.kaynak+' "'+it.baslik.slice(0,60)+'…"');
+  return {farklar:f,notlar:n};
 }
 const ozetSatiri=it=>{
   let s=(it.yazarlar||[]).slice(0,12).join(", ")+" ("+(it.yil||"?")+"). "+it.baslik+".";
@@ -447,14 +456,15 @@ async function dogrula(k){
       continue;
     }
     bakilan.push(it.kaynak);
-    const farklar=denetle(k,it);
-    if(!farklar.length) return {it,farklar:[],bakilan,digerleri:[],gunluk};
-    sonuclar.push({it,farklar});
+    const d=denetle(k,it);
+    if(!d.farklar.length) return {it,farklar:[],notlar:d.notlar,bakilan,digerleri:[],gunluk};
+    sonuclar.push({it,farklar:d.farklar,notlar:d.notlar});
   }
   if(!sonuclar.length) return {it:null,farklar:null,bakilan,digerleri:[],gunluk};
   sonuclar.sort((a,b)=>a.farklar.length-b.farklar.length||
     benzerlik(k.baslik,b.it.baslik)-benzerlik(k.baslik,a.it.baslik));
-  return {it:sonuclar[0].it,farklar:sonuclar[0].farklar,bakilan,digerleri:sonuclar.slice(1),gunluk};
+  return {it:sonuclar[0].it,farklar:sonuclar[0].farklar,notlar:sonuclar[0].notlar,
+          bakilan,digerleri:sonuclar.slice(1),gunluk};
 }
 let kayitlar=[],raporMetni="";
 (function(){
@@ -526,14 +536,15 @@ $("#basla").onclick=async()=>{
       logla(i+1,"bulunamadı");
     } else if(r.farklar.length){
       uyari++;
-      kartEkle(i+1,"uyari",k.tur,ham,r.farklar,r.it,r.digerleri,null,bak);
+      kartEkle(i+1,"uyari",k.tur,ham,r.farklar,r.it,r.digerleri,null,bak,r.notlar);
       rs.push("["+(i+1)+"] FARK VAR — en yakın: "+r.it.kaynak+" ("+r.farklar.length+" fark)\n    bakılan: "+bak+
-        "\n    TEZ   : "+ham+"\n"+r.farklar.map(x=>"    ! "+x+"\n").join("")+
+        "\n    KÜNYE : "+ham+"\n"+r.farklar.map(x=>"    ! "+x+"\n").join("")+
+        (r.notlar||[]).map(x=>"    ⓘ "+x+"\n").join("")+
         "    "+r.it.kaynak+": "+ozetSatiri(r.it)+"\n"+
         r.digerleri.map(d=>"    "+d.it.kaynak+": "+ozetSatiri(d.it)+"   ("+d.farklar.length+" fark)\n").join(""));
       logla(i+1,r.it.kaynak+": "+r.farklar.length+" fark");
     } else {
-      iyi++; kartEkle(i+1,"iyi",k.tur,ham,[],r.it,[],null,bak); logla(i+1,"tamam ("+r.it.kaynak+")");
+      iyi++; kartEkle(i+1,"iyi",k.tur,ham,[],r.it,[],null,bak,r.notlar); logla(i+1,"tamam ("+r.it.kaynak+")");
     }
   }
   $("#dolgu").style.width="100%"; $("#durum").textContent="Tamamlandı.";
@@ -556,12 +567,13 @@ function logla(no,msg){
   $("#kayit").appendChild(d); $("#kayit").scrollTop=$("#kayit").scrollHeight;
 }
 const kacir=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-function kartEkle(no,sinif,tur,ham,farklar,it,digerleri,ipucu,bak){
+function kartEkle(no,sinif,tur,ham,farklar,it,digerleri,ipucu,bak,notlar){
   const d=document.createElement("div");
   d.className="kayit k-"+sinif;
   const isaret=sinif==="iyi"?"✓":sinif==="uyari"?"⚠":"✗";
   let h='<div class="kbas"><span class="no">'+isaret+" "+no+'</span><span class="etiket">'+tur+(bak?" · "+bak:"")+'</span></div><div class="kunye">'+kacir(ham)+"</div>";
   h+=farklar.map(f=>'<div class="fark">! '+kacir(f)+"</div>").join("");
+  h+=(notlar||[]).map(x=>'<div class="not">ⓘ '+kacir(x)+"</div>").join("");
   if(it&&(farklar.length||sinif==="iyi")) h+='<div class="kaynakSatir">'+it.kaynak+": "+kacir(ozetSatiri(it))+"</div>";
   if(digerleri&&digerleri.length){
     h+=digerleri.map(x=>'<div class="kaynakSatir">'+x.it.kaynak+": "+kacir(ozetSatiri(x.it))+" ("+x.farklar.length+" fark)</div>").join("");
