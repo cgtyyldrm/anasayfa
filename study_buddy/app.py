@@ -1350,7 +1350,7 @@ localElements.forEach(el => {{
     def render_lgs_tab(active_user, is_admin=False, active_student_filter=None):
         webapp_url = st.secrets.get("connections", {}).get("webapp_url") if "connections" in st.secrets else None
 
-        header_col1, header_col2 = st.columns([3, 1])
+        header_col1, header_col2 = st.columns([5, 1])
         with header_col1:
             if is_admin:
                 student_name = active_student_filter if active_student_filter and active_student_filter != "Tümü" else "Berru"
@@ -1361,19 +1361,9 @@ localElements.forEach(el => {{
         with header_col2:
             st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
             if webapp_url:
-                c_btn1, c_btn2 = st.columns(2)
-                with c_btn1:
-                    if st.button("🔄 Yenile", key="lgs_sync_refresh", help="Google Sheets'ten en güncel LGS denemelerini çeker", use_container_width=True):
-                        st.cache_data.clear()
-                        st.rerun()
-                with c_btn2:
-                    if st.button("☁️ Yedekle", key="lgs_sync_push", help="Yereldeki tüm LGS denemelerini Google Sheets'e yükler", use_container_width=True):
-                        with st.spinner("Google Sheets'e yükleniyor..."):
-                            success, msg = lm.sync_local_to_cloud(webapp_url)
-                            if success:
-                                st.toast(f"✅ {msg}", icon="☁️")
-                            else:
-                                st.error(msg)
+                if st.button("🔄 Yenile", key="lgs_sync_refresh", help="Google Sheets'ten en güncel LGS denemelerini çeker", use_container_width=True):
+                    st.cache_data.clear()
+                    st.rerun()
             else:
                 st.caption("💾 Yerel Mod (Bulut bağlantısı yok)")
 
