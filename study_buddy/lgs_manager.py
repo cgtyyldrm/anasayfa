@@ -303,13 +303,7 @@ def load_lgs_exams(api_url=None, force_refresh=False):
                 raw_data = resp.json()
                 if isinstance(raw_data, list):
                     cloud_data = [x for x in raw_data if _is_valid_lgs_exam(x)]
-                    if len(cloud_data) > 0 or (force_refresh and len(raw_data) == 0):
-                        save_lgs_exams_local(cloud_data)
-                        return cloud_data
-                    # Eğer Google Apps Script henüz güncellenmemişse veya boşsa yereli koru
-                    local_data = load_lgs_exams_local()
-                    if len(local_data) > 0 and len(cloud_data) == 0:
-                        return local_data
+                    save_lgs_exams_local(cloud_data)
                     return cloud_data
         except Exception as e:
             print(f"LGS Google Sheets veri okuma hatası (yerel dosya devrede): {e}")
