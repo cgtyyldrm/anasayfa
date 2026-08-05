@@ -8,6 +8,7 @@ import pytz
 import base64
 import os
 import json
+import lgs_manager as lm
 
 try:
     import extra_streamlit_components as stx # YENİ EKLENDİ
@@ -424,6 +425,54 @@ st.markdown("""
     button[data-baseweb="tab"][aria-selected="true"] {
         background-color: #FCE4EC !important;
         border: 1px solid #F48FB1 !important;
+    }
+
+    /* LGS Delta Badges & Cards */
+    .delta-badge-pos {
+        background-color: #E8F5E9 !important;
+        color: #2E7D32 !important;
+        border: 1px solid #A5D6A7;
+        font-weight: 800;
+        padding: 4px 10px;
+        border-radius: 12px;
+        display: inline-block;
+        font-size: 0.95rem;
+    }
+    .delta-badge-neg {
+        background-color: #FFEBEE !important;
+        color: #C62828 !important;
+        border: 1px solid #FFCDD2;
+        font-weight: 800;
+        padding: 4px 10px;
+        border-radius: 12px;
+        display: inline-block;
+        font-size: 0.95rem;
+    }
+    .delta-badge-neu {
+        background-color: #F5F5F5 !important;
+        color: #616161 !important;
+        border: 1px solid #E0E0E0;
+        font-weight: 800;
+        padding: 4px 10px;
+        border-radius: 12px;
+        display: inline-block;
+        font-size: 0.95rem;
+    }
+    .trouble-card {
+        background: #FFF8E1;
+        border-left: 5px solid #FF9800;
+        padding: 10px 14px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.04);
+    }
+    .mastered-card {
+        background: #E8F5E9;
+        border-left: 5px solid #4CAF50;
+        padding: 10px 14px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.04);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -1298,9 +1347,554 @@ localElements.forEach(el => {{
                 
                 st.divider()
 
+    def render_lgs_tab(active_user, is_admin=False, active_student_filter=None):
+        webapp_url = st.secrets.get("connections", {}).get("webapp_url") if "connections" in st.secrets else None
+
+        header_col1, header_col2 = st.columns([3, 1])
+        with header_col1:
+            if is_admin:
+                student_name = active_student_filter if active_student_filter and active_student_filter != "Tümü" else "Berru"
+                st.markdown(f"<div class='ribbon-title'>🎯 LGS Deneme Takibi & Analizi ({student_name})</div>", unsafe_allow_html=True)
+            else:
+                student_name = active_user
+                st.markdown(f"<div class='ribbon-title'>🎯 LGS Deneme Sınavlarım & Madde Analizi</div>", unsafe_allow_html=True)
+        with header_col2:
+            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+            if webapp_url:
+                c_btn1, c_btn2 = st.columns(2)
+                with c_btn1:
+                    if st.button("🔄 Yenile", key="lgs_sync_refresh", help="Google Sheets'ten en güncel LGS denemelerini çeker", use_container_width=True):
+                        st.cache_data.clear()
+                        st.rerun()
+                with c_btn2:
+                    if st.button("☁️ Yedekle", key="lgs_sync_push", help="Yereldeki tüm LGS denemelerini Google Sheets'e yükler", use_container_width=True):
+                        with st.spinner("Google Sheets'e yükleniyor..."):
+                            success, msg = lm.sync_local_to_cloud(webapp_url)
+                            if success:
+                                st.toast(f"✅ {msg}", icon="☁️")
+                            else:
+                                st.error(msg)
+            else:
+                st.caption("💾 Yerel Mod (Bulut bağlantısı yok)")
+
+        exams = lm.get_student_exams(student_name, api_url=webapp_url)
+
+        lgs_sub1, lgs_sub2, lgs_sub3, lgs_sub4, lgs_sub5 = st.tabs([
+            "📊 Son Deneme & Gelişim (Delta)",
+            "📚 Konu Karnesi & Eksik Konu Alarmı",
+            "📈 Gelişim Grafikleri",
+            "➕ Yeni Deneme Ekle",
+            "📋 Tüm Denemeler"
+        ])
+
+        # --- SUB-TAB 1: SON DENEME & GELİŞİM (DELTA) ---
+        with lgs_sub1:
+            if not exams:
+                st.info("ℹ️ Henüz kayıtlı LGS denemeniz bulunmuyor. '➕ Yeni Deneme Ekle' sekmesinden ilk denemenizi ekleyebilirsiniz!", icon="🎯")
+            else:
+                latest = exams[0]
+                tarih_display = format_date_tr(pd.to_datetime(latest.get('tarih')).date()) if latest.get('tarih') else str(today)
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #FFF0F5 0%, #FCE4EC 100%); border: 2px solid #F48FB1; border-radius: 18px; padding: 18px 22px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(233,30,99,0.1);'>
+                    <div style='display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;'>
+                        <div>
+                            <span style='font-size: 1.35rem; font-weight: 800; color: #880E4F;'>🏆 {latest.get('deneme_adi', 'LGS Deneme Sınavı')}</span>
+                            <span style='background: #F8BBD0; color: #880E4F; padding: 4px 12px; border-radius: 12px; font-weight: 700; font-size: 0.85rem; margin-left: 10px;'>{latest.get('yayin', 'Yayın')}</span>
+                        </div>
+                        <div style='color: #AD1457; font-weight: 700; font-size: 0.95rem;'>
+                            📅 {tarih_display} &nbsp;|&nbsp; ⏱️ {latest.get('sure_dk', 155)} dk &nbsp;|&nbsp; 🎯 Zorluk: {latest.get('zorluk', 'Orta')}
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # 5 Big Metric Cards
+                m_c1, m_c2, m_c3, m_c4, m_c5 = st.columns(5)
+                with m_c1:
+                    st.metric("Toplam Net", f"{latest.get('toplam_net', 0):.2f} / 90")
+                with m_c2:
+                    st.metric("Tahmini LGS Puanı", f"{latest.get('tahmini_puan', 0):.1f} / 500")
+                with m_c3:
+                    st.metric("Doğru / Yanlış / Boş", f"{latest.get('toplam_dogru', 0)}D - {latest.get('toplam_yanlis', 0)}Y - {latest.get('toplam_bos', 0)}B")
+                with m_c4:
+                    st.metric("Sözel Net", f"{latest.get('sozel_net', 0):.2f} / 50")
+                with m_c5:
+                    st.metric("Sayısal Net", f"{latest.get('sayisal_net', 0):.2f} / 40")
+
+                if latest.get("notlar"):
+                    st.info(f"💡 **Deneme Notları:** {latest.get('notlar')}")
+
+                # DELTA ANALİZİ (Eğer 2 veya daha fazla deneme varsa)
+                if len(exams) >= 2:
+                    prev = exams[1]
+                    delta = lm.get_delta_analysis(latest, prev)
+
+                    st.markdown("<hr style='margin: 25px 0; border: none; border-top: 2px dashed #F48FB1;'>", unsafe_allow_html=True)
+                    st.markdown(f"### 🚀 Önceki Denemeye Göre Ne Değişti?")
+                    st.caption(f"Karşılaştırılan: **{prev.get('deneme_adi', 'Önceki Deneme')}** ({prev.get('tarih')}) ➡️ **{latest.get('deneme_adi', 'Son Deneme')}** ({latest.get('tarih')})")
+
+                    # Delta summary cards
+                    d_c1, d_c2, d_c3, d_c4 = st.columns(4)
+                    
+                    net_diff = delta['delta_net']
+                    puan_diff = delta['delta_puan']
+                    yanlis_diff = delta['delta_yanlis']
+                    sayisal_diff = delta['delta_sayisal_net']
+
+                    with d_c1:
+                        badge_cls = "delta-badge-pos" if net_diff > 0 else "delta-badge-neg" if net_diff < 0 else "delta-badge-neu"
+                        arrow = "🔼" if net_diff > 0 else "🔻" if net_diff < 0 else "➖"
+                        st.markdown(f"""
+                        <div style='background: white; border: 1.5px solid #F8BBD0; border-radius: 12px; padding: 12px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.03);'>
+                            <div style='color: #880E4F; font-size: 0.85rem; font-weight: 700;'>Toplam Net Farkı</div>
+                            <div style='margin: 6px 0;'><span class='{badge_cls}'>{"+" if net_diff > 0 else ""}{net_diff:.2f} Net {arrow}</span></div>
+                            <div style='font-size: 0.75rem; color: #666;'>Önceki: {prev.get('toplam_net', 0):.2f} ➡️ Yeni: {latest.get('toplam_net', 0):.2f}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    with d_c2:
+                        badge_cls = "delta-badge-pos" if puan_diff > 0 else "delta-badge-neg" if puan_diff < 0 else "delta-badge-neu"
+                        arrow = "🚀" if puan_diff > 0 else "🔻" if puan_diff < 0 else "➖"
+                        st.markdown(f"""
+                        <div style='background: white; border: 1.5px solid #F8BBD0; border-radius: 12px; padding: 12px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.03);'>
+                            <div style='color: #880E4F; font-size: 0.85rem; font-weight: 700;'>LGS Puan Farkı</div>
+                            <div style='margin: 6px 0;'><span class='{badge_cls}'>{"+" if puan_diff > 0 else ""}{puan_diff:.1f} Puan {arrow}</span></div>
+                            <div style='font-size: 0.75rem; color: #666;'>Önceki: {prev.get('tahmini_puan', 0):.1f} ➡️ Yeni: {latest.get('tahmini_puan', 0):.1f}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    with d_c3:
+                        badge_cls = "delta-badge-pos" if yanlis_diff < 0 else "delta-badge-neg" if yanlis_diff > 0 else "delta-badge-neu"
+                        arrow = "📉 (Azaldı ✨)" if yanlis_diff < 0 else "📈 (Arttı ⚠️)" if yanlis_diff > 0 else "➖"
+                        st.markdown(f"""
+                        <div style='background: white; border: 1.5px solid #F8BBD0; border-radius: 12px; padding: 12px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.03);'>
+                            <div style='color: #880E4F; font-size: 0.85rem; font-weight: 700;'>Yanlış Soru Farkı</div>
+                            <div style='margin: 6px 0;'><span class='{badge_cls}'>{"+" if yanlis_diff > 0 else ""}{yanlis_diff} Yanlış {arrow}</span></div>
+                            <div style='font-size: 0.75rem; color: #666;'>Önceki: {prev.get('toplam_yanlis', 0)}Y ➡️ Yeni: {latest.get('toplam_yanlis', 0)}Y</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    with d_c4:
+                        badge_cls = "delta-badge-pos" if sayisal_diff > 0 else "delta-badge-neg" if sayisal_diff < 0 else "delta-badge-neu"
+                        arrow = "🔼" if sayisal_diff > 0 else "🔻" if sayisal_diff < 0 else "➖"
+                        st.markdown(f"""
+                        <div style='background: white; border: 1.5px solid #F8BBD0; border-radius: 12px; padding: 12px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.03);'>
+                            <div style='color: #880E4F; font-size: 0.85rem; font-weight: 700;'>Sayısal Net Farkı</div>
+                            <div style='margin: 6px 0;'><span class='{badge_cls}'>{"+" if sayisal_diff > 0 else ""}{sayisal_diff:.2f} Net {arrow}</span></div>
+                            <div style='font-size: 0.75rem; color: #666;'>Sözel Net Farkı: {"+" if delta['delta_sozel_net'] > 0 else ""}{delta['delta_sozel_net']:.2f} Net</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown("#### 🎯 Ders Bazlı Değişim Raporu")
+                    
+                    lesson_rows = []
+                    for l_name, l_info in lm.LGS_LESSONS.items():
+                        l_data = delta["lesson_deltas"].get(l_name, {})
+                        d_net = l_data.get("delta_net", 0.0)
+                        c_net = l_data.get("current_net", 0.0)
+                        p_net = l_data.get("previous_net", 0.0)
+                        d_d = l_data.get("delta_d", 0)
+                        d_y = l_data.get("delta_y", 0)
+                        d_b = l_data.get("delta_b", 0)
+                        
+                        durum = "🚀 Yükseliş" if d_net > 0 else "🔻 Düşüş" if d_net < 0 else "➖ Sabit"
+                        
+                        lesson_rows.append({
+                            "Ders": f"{l_info['icon']} {l_name}",
+                            "Önceki Net": f"{p_net:.2f}",
+                            "Son Net": f"{c_net:.2f}",
+                            "Net Farkı (Δ)": f"{'+' if d_net > 0 else ''}{d_net:.2f}",
+                            "Doğru Değişimi": f"{'+' if d_d > 0 else ''}{d_d} D",
+                            "Yanlış Değişimi": f"{'+' if d_y > 0 else ''}{d_y} Y",
+                            "Boş Değişimi": f"{'+' if d_b > 0 else ''}{d_b} B",
+                            "Durum": durum
+                        })
+                    
+                    st.dataframe(pd.DataFrame(lesson_rows), use_container_width=True, hide_index=True)
+
+                    # Konu / Madde Değişimi Bildirimleri
+                    if delta.get("improved_topics") or delta.get("regressed_topics"):
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        st.markdown("#### 🔍 Madde Analizi İlerlemeleri & Uyarılar")
+                        
+                        if delta.get("improved_topics"):
+                            st.success("🎉 **Hatalar Telafi Edildi & Doğruya Dönüştü:**")
+                            for imp in delta["improved_topics"]:
+                                st.markdown(f"- **{imp['ders']} - {imp['konu']}**: {imp['mesaj']}")
+                                
+                        if delta.get("regressed_topics"):
+                            st.warning("⚠️ **Tekrar Edilmesi Gereken Konular (Yeni Yanlışlar):**")
+                            for reg in delta["regressed_topics"]:
+                                st.markdown(f"- **{reg['ders']} - {reg['konu']}**: {reg['mesaj']}")
+
+                    # İki Deneme Seçmeli Kıyaslama Aracı
+                    with st.expander("⚖️ İki Denemeyi Yan Yana Kıyasla (Detaylı Grafik & Analiz)", expanded=False):
+                        exam_names = [f"{e.get('tarih')} - {e.get('deneme_adi', '')}" for e in exams]
+                        col_k1, col_k2 = st.columns(2)
+                        with col_k1:
+                            sel_idx1 = st.selectbox("1. Deneme (Güncel)", range(len(exams)), format_func=lambda i: exam_names[i], index=0, key="sel_k1")
+                        with col_k2:
+                            sel_idx2 = st.selectbox("2. Deneme (Karşılaştırılan)", range(len(exams)), format_func=lambda i: exam_names[i], index=1 if len(exams) > 1 else 0, key="sel_k2")
+                            
+                        ex_sel1 = exams[sel_idx1]
+                        ex_sel2 = exams[sel_idx2]
+                        
+                        fig_comp = lm.create_lesson_comparison_bar(ex_sel1, ex_sel2)
+                        if fig_comp:
+                            st.plotly_chart(fig_comp, use_container_width=True)
+                else:
+                    st.info("✨ Harika! İlk LGS denemeniz sisteme kaydedildi. İkinci bir deneme eklediğinizde 'Önceki Denemeye Göre Değişim (Delta)' analizi burada otomatik olarak görüntülenecektir.")
+
+        # --- SUB-TAB 2: KONU KARNESİ & EKSİK KONU ALARMI ---
+        with lgs_sub2:
+            st.subheader("📚 Konu Karnesi & Eksik Konu Alarmı (Madde Analizi)")
+            st.markdown("Denemelerde çözülen tüm soruların konu bazlı birikimli analizi ve başarı oranları.")
+            
+            topic_report = lm.get_topic_mastery_report(student_name, api_url=webapp_url)
+            
+            if not topic_report["all_topics"]:
+                st.info("ℹ️ Henüz konu bazlı madde analizi girilmiş deneme bulunmuyor. Yeni deneme eklerken '⭐ Detaylı Madde Analizi' seçeneğini işaretleyerek konu bazında soru ve doğru/yanlış sayılarını girebilirsiniz!")
+            else:
+                col_tr1, col_tr2 = st.columns(2)
+                with col_tr1:
+                    st.markdown("#### 🚨 Öncelikli Tekrar Edilmesi Gereken Konular")
+                    if topic_report["trouble_topics"]:
+                        for t in topic_report["trouble_topics"][:6]:
+                            st.markdown(f"""
+                            <div class='trouble-card'>
+                                <div style='font-weight: 800; color: #E65100;'>{lm.LGS_LESSONS.get(t['ders'], {}).get('icon', '📌')} {t['ders']} - {t['konu']}</div>
+                                <div style='font-size: 0.85rem; color: #5D4037; margin-top: 4px;'>
+                                    <b>{t['toplam_yanlis']} Yanlış</b>, {t['toplam_bos']} Boş / {t['toplam_soru']} Soru &nbsp;|&nbsp; 
+                                    Başarı: <b>%{t['basari_yuzdesi']}</b> (Net: {t['toplam_net']:.2f})
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.success("Tebrikler! Belirgin bir eksik konu alarmı bulunmuyor. 🌟")
+                        
+                with col_tr2:
+                    st.markdown("#### ⭐ Ustalaşılan Konular (%85+ Başarı)")
+                    if topic_report["mastered_topics"]:
+                        for t in topic_report["mastered_topics"][:6]:
+                            st.markdown(f"""
+                            <div class='mastered-card'>
+                                <div style='font-weight: 800; color: #1B5E20;'>{lm.LGS_LESSONS.get(t['ders'], {}).get('icon', '⭐')} {t['ders']} - {t['konu']}</div>
+                                <div style='font-size: 0.85rem; color: #2E7D32; margin-top: 4px;'>
+                                    <b>{t['toplam_dogru']} Doğru</b> / {t['toplam_soru']} Soru &nbsp;|&nbsp; 
+                                    Başarı Oranı: <b>%{t['basari_yuzdesi']}</b>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.info("Daha fazla deneme çözdükçe ustalaştığın konular burada parlayacak! ✨")
+                        
+                st.markdown("---")
+                st.markdown("#### 📊 Ders Bazlı Konu Başarı Grafiği")
+                lesson_filter = st.selectbox("Ders Seçin", ["Tüm Dersler"] + list(lm.LGS_LESSONS.keys()), key="lgs_topic_lesson_filter")
+                
+                fig_topic = lm.create_topic_mastery_chart(topic_report["all_topics"], lesson_filter)
+                if fig_topic:
+                    st.plotly_chart(fig_topic, use_container_width=True)
+                    
+                with st.expander("📋 Tüm Konuların Ayrıntılı Tablosu"):
+                    df_topics = pd.DataFrame(topic_report["all_topics"])
+                    df_topics = df_topics.rename(columns={
+                        "ders": "Ders", "konu": "Konu", "toplam_soru": "Toplam Soru",
+                        "toplam_dogru": "Doğru", "toplam_yanlis": "Yanlış", "toplam_bos": "Boş",
+                        "toplam_net": "Toplam Net", "basari_yuzdesi": "Başarı %", "deneme_sayisi": "Çıktığı Deneme Sayısı"
+                    })
+                    st.dataframe(df_topics, use_container_width=True, hide_index=True)
+
+        # --- SUB-TAB 3: GELİŞİM GRAFİKLERİ ---
+        with lgs_sub3:
+            st.subheader("📈 LGS Gelişim Grafikleri & Trendler")
+            if not exams:
+                st.info("ℹ️ Grafikleri görüntülemek için en az 1 deneme kaydetmelisiniz.")
+            else:
+                nets = [e.get('toplam_net', 0) for e in exams]
+                scores = [e.get('tahmini_puan', 0) for e in exams]
+                
+                st_c1, st_c2, st_c3, st_c4 = st.columns(4)
+                st_c1.metric("En Yüksek Net", f"{max(nets):.2f} Net")
+                st_c2.metric("En Yüksek LGS Puanı", f"{max(scores):.1f} Puan")
+                st_c3.metric("Ortalama Net", f"{sum(nets)/len(nets):.2f} Net")
+                st_c4.metric("Toplam Deneme", f"{len(exams)} Adet")
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                fig_trend = lm.create_net_and_score_trend_chart(exams)
+                if fig_trend:
+                    st.plotly_chart(fig_trend, use_container_width=True)
+                    
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                fig_lesson_trend = lm.create_lesson_trend_chart(exams)
+                if fig_lesson_trend:
+                    st.plotly_chart(fig_lesson_trend, use_container_width=True)
+
+        # --- SUB-TAB 4: YENİ DENEME EKLE ---
+        with lgs_sub4:
+            st.subheader("➕ Yeni LGS Deneme Sınavı Ekle")
+            
+            with st.container(border=True):
+                c_h1, c_h2, c_h3 = st.columns(3)
+                
+                if is_admin:
+                    student_opt = ["Berru", "Ela"]
+                    def_st_idx = student_opt.index(student_name) if student_name in student_opt else 0
+                    exam_student = c_h1.selectbox("Öğrenci", student_opt, index=def_st_idx, key="lgs_add_st")
+                else:
+                    exam_student = student_name
+                    c_h1.text_input("Öğrenci", value=student_name, disabled=True)
+                    
+                exam_name = c_h2.text_input("Deneme Adı", placeholder="Örn: Özdebir Türkiye Geneli 1", key="lgs_add_name")
+                exam_publisher = c_h3.text_input("Yayın / Kurum", placeholder="Örn: Özdebir, Töder, Nitelik", key="lgs_add_pub")
+                
+                c_h4, c_h5, c_h6 = st.columns(3)
+                exam_date = c_h4.date_input("Deneme Tarihi", value=today, key="lgs_add_date")
+                exam_duration = c_h5.number_input("Süre (Dakika)", min_value=30, max_value=300, value=155, step=5, key="lgs_add_dur")
+                exam_difficulty = c_h6.selectbox("Zorluk Derecesi", ["Kolay", "Orta", "Zor", "Çok Zor"], index=1, key="lgs_add_diff")
+                
+                exam_notes = st.text_input("Deneme Notları / Görüşler (İsteğe Bağlı)", placeholder="Örn: Matematikte yeni nesil geometri soruları zordu.", key="lgs_add_notes")
+                
+                st.markdown("<hr style='margin: 15px 0;'>", unsafe_allow_html=True)
+                
+                input_mode = st.radio(
+                    "📌 Giriş Yöntemi Seçin:",
+                    ["🟢 Hızlı Giriş (Sadece Ders D/Y/B Sayıları)", "⭐ Detaylı Madde Analizi (Konu Bazlı Soru ve D/Y Girişi)"],
+                    horizontal=True,
+                    key="lgs_input_mode"
+                )
+                
+                is_detailed = "Detaylı" in input_mode
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                col_sozel, col_sayisal = st.columns(2)
+                
+                dersler_payload = {}
+                
+                # SÖZEL BÖLÜM
+                with col_sozel:
+                    st.markdown("### 📖 Sözel Bölüm (50 Soru)")
+                    sozel_lessons = ["Türkçe", "İnkılap Tarihi", "Din Kültürü", "İngilizce"]
+                    
+                    for l_name in sozel_lessons:
+                        l_info = lm.LGS_LESSONS[l_name]
+                        max_s = l_info["soru_sayisi"]
+                        
+                        with st.expander(f"{l_info['icon']} **{l_name}** ({max_s} Soru)", expanded=True):
+                            if is_detailed:
+                                selected_topics = st.multiselect(
+                                    f"{l_name} Çıkan Konular:",
+                                    lm.LGS_CURRICULUM.get(l_name, []),
+                                    key=f"top_sel_{l_name}"
+                                )
+                                
+                                topic_items = []
+                                t_dogru_sum = 0
+                                t_yanlis_sum = 0
+                                t_soru_sum = 0
+                                
+                                for top in selected_topics:
+                                    st.markdown(f"**🔹 {top}**")
+                                    t_c1, t_c2, t_c3 = st.columns(3)
+                                    s_cnt = t_c1.number_input("Soru", min_value=1, max_value=max_s, value=1, key=f"s_{l_name}_{top}")
+                                    d_cnt = t_c2.number_input("Doğru", min_value=0, max_value=s_cnt, value=s_cnt, key=f"d_{l_name}_{top}")
+                                    y_cnt = t_c3.number_input("Yanlış", min_value=0, max_value=s_cnt - d_cnt, value=0, key=f"y_{l_name}_{top}")
+                                    b_cnt = s_cnt - (d_cnt + y_cnt)
+                                    
+                                    t_dogru_sum += d_cnt
+                                    t_yanlis_sum += y_cnt
+                                    t_soru_sum += s_cnt
+                                    
+                                    topic_items.append({
+                                        "konu": top, "soru": s_cnt, "dogru": d_cnt, "yanlis": y_cnt, "bos": b_cnt
+                                    })
+                                
+                                if selected_topics:
+                                    def_d = t_dogru_sum
+                                    def_y = t_yanlis_sum
+                                else:
+                                    def_d = max_s
+                                    def_y = 0
+                                    
+                                d_c1, d_c2, d_c3 = st.columns(3)
+                                d_val = d_c1.number_input(f"{l_name} Toplam Doğru", min_value=0, max_value=max_s, value=min(max_s, def_d), key=f"tot_d_{l_name}")
+                                y_val = d_c2.number_input(f"{l_name} Toplam Yanlış", min_value=0, max_value=max_s - d_val, value=min(max_s - d_val, def_y), key=f"tot_y_{l_name}")
+                                b_val = max(0, max_s - (d_val + y_val))
+                                d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
+                                
+                                dersler_payload[l_name] = {
+                                    "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": topic_items
+                                }
+                            else:
+                                d_c1, d_c2, d_c3 = st.columns(3)
+                                d_val = d_c1.number_input(f"{l_name} Doğru", min_value=0, max_value=max_s, value=max_s, key=f"fast_d_{l_name}")
+                                y_val = d_c2.number_input(f"{l_name} Yanlış", min_value=0, max_value=max_s - d_val, value=0, key=f"fast_y_{l_name}")
+                                b_val = max(0, max_s - (d_val + y_val))
+                                d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
+                                
+                                dersler_payload[l_name] = {
+                                    "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": []
+                                }
+
+                # SAYISAL BÖLÜM
+                with col_sayisal:
+                    st.markdown("### 🔬 Sayısal Bölüm (40 Soru)")
+                    sayisal_lessons = ["Matematik", "Fen Bilimleri"]
+                    
+                    for l_name in sayisal_lessons:
+                        l_info = lm.LGS_LESSONS[l_name]
+                        max_s = l_info["soru_sayisi"]
+                        
+                        with st.expander(f"{l_info['icon']} **{l_name}** ({max_s} Soru)", expanded=True):
+                            if is_detailed:
+                                selected_topics = st.multiselect(
+                                    f"{l_name} Çıkan Konular:",
+                                    lm.LGS_CURRICULUM.get(l_name, []),
+                                    key=f"top_sel_{l_name}"
+                                )
+                                
+                                topic_items = []
+                                t_dogru_sum = 0
+                                t_yanlis_sum = 0
+                                t_soru_sum = 0
+                                
+                                for top in selected_topics:
+                                    st.markdown(f"**🔹 {top}**")
+                                    t_c1, t_c2, t_c3 = st.columns(3)
+                                    s_cnt = t_c1.number_input("Soru", min_value=1, max_value=max_s, value=1, key=f"s_{l_name}_{top}")
+                                    d_cnt = t_c2.number_input("Doğru", min_value=0, max_value=s_cnt, value=s_cnt, key=f"d_{l_name}_{top}")
+                                    y_cnt = t_c3.number_input("Yanlış", min_value=0, max_value=s_cnt - d_cnt, value=0, key=f"y_{l_name}_{top}")
+                                    b_cnt = s_cnt - (d_cnt + y_cnt)
+                                    
+                                    t_dogru_sum += d_cnt
+                                    t_yanlis_sum += y_cnt
+                                    t_soru_sum += s_cnt
+                                    
+                                    topic_items.append({
+                                        "konu": top, "soru": s_cnt, "dogru": d_cnt, "yanlis": y_cnt, "bos": b_cnt
+                                    })
+                                
+                                if selected_topics:
+                                    def_d = t_dogru_sum
+                                    def_y = t_yanlis_sum
+                                else:
+                                    def_d = max_s
+                                    def_y = 0
+                                    
+                                d_c1, d_c2, d_c3 = st.columns(3)
+                                d_val = d_c1.number_input(f"{l_name} Toplam Doğru", min_value=0, max_value=max_s, value=min(max_s, def_d), key=f"tot_d_{l_name}")
+                                y_val = d_c2.number_input(f"{l_name} Toplam Yanlış", min_value=0, max_value=max_s - d_val, value=min(max_s - d_val, def_y), key=f"tot_y_{l_name}")
+                                b_val = max(0, max_s - (d_val + y_val))
+                                d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
+                                
+                                dersler_payload[l_name] = {
+                                    "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": topic_items
+                                }
+                            else:
+                                d_c1, d_c2, d_c3 = st.columns(3)
+                                d_val = d_c1.number_input(f"{l_name} Doğru", min_value=0, max_value=max_s, value=max_s, key=f"fast_d_{l_name}")
+                                y_val = d_c2.number_input(f"{l_name} Yanlış", min_value=0, max_value=max_s - d_val, value=0, key=f"fast_y_{l_name}")
+                                b_val = max(0, max_s - (d_val + y_val))
+                                d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
+                                
+                                dersler_payload[l_name] = {
+                                    "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": []
+                                }
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                # Anlık Önizleme
+                calc_sozel_net = sum(lm.calculate_net(dersler_payload[l]["dogru"], dersler_payload[l]["yanlis"]) for l in sozel_lessons)
+                calc_sayisal_net = sum(lm.calculate_net(dersler_payload[l]["dogru"], dersler_payload[l]["yanlis"]) for l in sayisal_lessons)
+                calc_toplam_net = round(calc_sozel_net + calc_sayisal_net, 2)
+                
+                net_dict = {l: lm.calculate_net(dersler_payload[l]["dogru"], dersler_payload[l]["yanlis"]) for l in lm.LGS_LESSONS.keys()}
+                calc_puan = lm.calculate_lgs_score(net_dict)
+                
+                st.markdown(f"""
+                <div style='background: #FFF0F5; border: 2px solid #F48FB1; border-radius: 14px; padding: 14px 20px; text-align: center; margin-bottom: 15px;'>
+                    <span style='font-size: 1.15rem; font-weight: 800; color: #880E4F;'>
+                        🎯 Hesaplanan Toplam Net: <span style='color:#D81B60;'>{calc_toplam_net:.2f} / 90</span> &nbsp;|&nbsp; 
+                        Sözel: {calc_sozel_net:.2f} &nbsp;|&nbsp; Sayısal: {calc_sayisal_net:.2f} &nbsp;|&nbsp; 
+                        Tahmini LGS Puanı: <span style='color:#8E24AA;'>{calc_puan:.1f} Puan</span>
+                    </span>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button("💾 LGS Deneme Sınavını Kaydet", type="primary", use_container_width=True):
+                    final_name = exam_name.strip() if exam_name.strip() else f"LGS Deneme ({exam_date})"
+                    new_exam = lm.create_exam_record(
+                        ogrenci=exam_student,
+                        deneme_adi=final_name,
+                        yayin=exam_publisher,
+                        tarih=exam_date,
+                        sure_dk=exam_duration,
+                        zorluk=exam_difficulty,
+                        notlar=exam_notes,
+                        dersler_data=dersler_payload
+                    )
+                    lm.add_exam(new_exam, api_url=webapp_url)
+                    st.balloons()
+                    st.success(f"🎉 '{final_name}' deneme sınavı başarıyla kaydedildi!")
+                    time.sleep(1.5)
+                    st.rerun()
+
+        # --- SUB-TAB 5: TÜM DENEMELER ---
+        with lgs_sub5:
+            st.subheader("📋 Tüm LGS Denemeleri")
+            if not exams:
+                st.info("ℹ️ Kayıtlı deneme bulunmuyor.")
+            else:
+                for idx, ex in enumerate(exams):
+                    with st.container(border=True):
+                        c_card1, c_card2 = st.columns([3, 1])
+                        with c_card1:
+                            st.markdown(f"**🏆 {ex.get('deneme_adi')}** ({ex.get('yayin')}) &nbsp;|&nbsp; 📅 {ex.get('tarih')} &nbsp;|&nbsp; ⏱️ {ex.get('sure_dk')} dk &nbsp;|&nbsp; 🎯 Zorluk: {ex.get('zorluk')}")
+                            st.markdown(f"**Toplam Net:** `{ex.get('toplam_net', 0):.2f}` &nbsp;|&nbsp; **Tahmini Puan:** `{ex.get('tahmini_puan', 0):.1f}` &nbsp;|&nbsp; **D/Y/B:** `{ex.get('toplam_dogru', 0)}D / {ex.get('toplam_yanlis', 0)}Y / {ex.get('toplam_bos', 0)}B`")
+                        with c_card2:
+                            if is_admin:
+                                if st.button("🗑️ Sil", key=f"del_ex_{ex.get('id')}", use_container_width=True):
+                                    lm.delete_exam(ex.get('id'), api_url=webapp_url)
+                                    st.success("Deneme silindi.")
+                                    time.sleep(1)
+                                    st.rerun()
+                                    
+                        with st.expander("🔍 Ders ve Konu Detaylarını Görüntüle"):
+                            d_rows = []
+                            for l_name, l_info in lm.LGS_LESSONS.items():
+                                ld = ex.get("dersler", {}).get(l_name, {})
+                                d_rows.append({
+                                    "Ders": f"{l_info['icon']} {l_name}",
+                                    "Doğru": ld.get("dogru", 0),
+                                    "Yanlış": ld.get("yanlis", 0),
+                                    "Boş": ld.get("bos", 0),
+                                    "Net": f"{ld.get('net', 0):.2f}",
+                                    "Başarı %": f"%{ld.get('basari_yuzdesi', 0):.1f}"
+                                })
+                            st.dataframe(pd.DataFrame(d_rows), use_container_width=True, hide_index=True)
+                            
+                            all_topics_in_ex = []
+                            for l_name, ld in ex.get("dersler", {}).items():
+                                for top in ld.get("konular", []):
+                                    all_topics_in_ex.append({
+                                        "Ders": l_name,
+                                        "Konu": top.get("konu"),
+                                        "Soru": top.get("soru"),
+                                        "Doğru": top.get("dogru"),
+                                        "Yanlış": top.get("yanlis"),
+                                        "Boş": top.get("bos")
+                                    })
+                            if all_topics_in_ex:
+                                st.markdown("##### 📝 Konu / Madde Analizi:")
+                                st.dataframe(pd.DataFrame(all_topics_in_ex), use_container_width=True, hide_index=True)
+
     if user in parents:
         # --- ADMIN GÖRÜNÜMÜ ---
-        tab1, tab2 = st.tabs(["⚙️ Görev Yönetimi", "➕ Yeni Ekle"])
+        tab1, tab_lgs, tab2 = st.tabs(["⚙️ Görev Yönetimi", "🎯 LGS Deneme Takibi", "➕ Yeni Ekle"])
         
         with tab1:
             student_title = active_student_filter if active_student_filter else "Tüm Öğrenciler"
@@ -1309,6 +1903,9 @@ localElements.forEach(el => {{
 
             table_data = filtered_df[filtered_df["Tarih"] == dashboard_date]
             show_task_table(table_data, is_admin=True)
+
+        with tab_lgs:
+            render_lgs_tab(user, is_admin=True, active_student_filter=active_student_filter)
 
         with tab2:
             with st.container(border=True):
@@ -1331,7 +1928,7 @@ localElements.forEach(el => {{
 
     else:
         # --- ÖĞRENCİ GÖRÜNÜMÜ ---
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Görevlerim", "📚 Kitaplığım", "➕ Serbest Çalışma", "⏳ Süreli Soru", "📈 İstatistiklerim"])
+        tab1, tab2, tab_lgs, tab3, tab4, tab5 = st.tabs(["📝 Görevlerim", "📚 Kitaplığım", "🎯 LGS Denemeleri", "➕ Serbest Çalışma", "⏳ Süreli Soru", "📈 İstatistiklerim"])
         
         with tab1:
             # Ribbon style title for Student
@@ -1437,6 +2034,9 @@ localElements.forEach(el => {{
                          st.rerun()
                     else:
                         st.warning("Lütfen bir kitap adı giriniz.")
+
+        with tab_lgs:
+            render_lgs_tab(user, is_admin=False)
 
         with tab3:
             st.subheader("➕ Serbest Çalışma")
