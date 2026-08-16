@@ -108,12 +108,6 @@ document.querySelectorAll('.course-title').forEach(title => {
 // Theme Toggle Logic
 const themeToggleBtn = document.getElementById('theme-toggle');
 if (themeToggleBtn) {
-    // Load saved theme
-    const savedTheme = localStorage.getItem('site-theme') || 'dark';
-    if (savedTheme === 'pink') {
-        document.documentElement.setAttribute('data-theme', 'pink');
-    }
-    
     themeToggleBtn.addEventListener('click', () => {
         const currentTheme = document.documentElement.getAttribute('data-theme');
         if (currentTheme === 'pink') {
