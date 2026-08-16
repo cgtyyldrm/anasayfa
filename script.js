@@ -42,11 +42,9 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 window.addEventListener('scroll', () => {
     const header = document.querySelector('header');
     if (window.scrollY > 50) {
-        header.style.background = 'rgba(15, 23, 42, 0.95)';
-        header.style.boxShadow = '0 5px 20px rgba(0,0,0,0.2)';
+        header.classList.add('scrolled');
     } else {
-        header.style.background = 'rgba(15, 23, 42, 0.85)';
-        header.style.boxShadow = 'none';
+        header.classList.remove('scrolled');
     }
 });
 
@@ -106,3 +104,24 @@ document.querySelectorAll('.course-title').forEach(title => {
         }
     });
 });
+
+// Theme Toggle Logic
+const themeToggleBtn = document.getElementById('theme-toggle');
+if (themeToggleBtn) {
+    // Load saved theme
+    const savedTheme = localStorage.getItem('site-theme') || 'dark';
+    if (savedTheme === 'pink') {
+        document.documentElement.setAttribute('data-theme', 'pink');
+    }
+    
+    themeToggleBtn.addEventListener('click', () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        if (currentTheme === 'pink') {
+            document.documentElement.removeAttribute('data-theme');
+            localStorage.setItem('site-theme', 'dark');
+        } else {
+            document.documentElement.setAttribute('data-theme', 'pink');
+            localStorage.setItem('site-theme', 'pink');
+        }
+    });
+}

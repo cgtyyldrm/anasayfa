@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
     <!-- Custom Style -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=13">
 </head>
 
 <body>
@@ -23,10 +23,11 @@
     <!-- Header -->
     <header>
         <nav>
-            <div class="logo">Doç.Dr. Çağatay Yıldırım</div>
+            <div class="logo" style="display:flex; align-items:center;"><i class="fas fa-bolt theme-toggle" id="theme-toggle" style="margin-right: 10px; font-size: 1.2rem; cursor: pointer; color: var(--gold); transition: var(--transition);"></i>Doç.Dr. Çağatay Yıldırım</div>
             <div class="menu-toggle" id="mobile-menu">
                 <i class="fas fa-bars"></i>
             </div>
+            
             <ul class="nav-links">
                 <li><a href="index.html#home">Anasayfa</a></li>
                 <li><a href="index.html#about">Hakkımda</a></li>
@@ -160,9 +161,9 @@
         <p class="footer-text">&copy; 2025 Çağatay Yıldırım. Tüm hakları saklıdır.</p>
     </footer>
 
-    <script src="script.js"></script>
+    <script src="script.js?v=7"></script>
     <script>
-        // Basit mobil menü toggle işlemi (script.js muhtemelen bunu yapıyor ama garanti olsun)
+        // Basit mobil menü toggle işlemi (script.js?v=7 muhtemelen bunu yapıyor ama garanti olsun)
         const mobileMenuBtn = document.getElementById('mobile-menu');
         const navLinks = document.querySelector('.nav-links');
 

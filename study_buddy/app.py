@@ -574,17 +574,22 @@ def get_data():
             }
             df.rename(columns=rename_map, inplace=True)
 
-            expected = ["Tarih", "Kullanıcı", "Ders", "Konu", "Durum", "Notlar", "Sure", "Dogru", "Yanlis", "Toplam", "rowIndex"]
+            expected = ["Tarih", "Kullanıcı", "Ders", "Konu", "Durum", "Notlar", "Sure", "Dogru", "Yanlis", "Bos", "Toplam", "rowIndex"]
             for col in expected:
                 if col not in df.columns: df[col] = ""
             
-            for col in ["Sure", "Dogru", "Yanlis", "Toplam", "rowIndex"]:
+            for col in ["Sure", "Dogru", "Yanlis", "Bos", "Toplam", "rowIndex"]:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
             
-            # Boş sayısını hesapla (Toplam - (Doğru + Yanlış))
-            df["Bos"] = df["Toplam"] - (df["Dogru"] + df["Yanlis"])
-            # Negatif koruma (olur da manuel veri girilirse)
-            df["Bos"] = df["Bos"].apply(lambda x: x if x >= 0 else 0)
+            # Sadece Dogru veya Yanlis varsa veya manuel girilmediyse Bos hesapla
+            def calculate_bos(row):
+                if row["Bos"] > 0: return row["Bos"]
+                if row["Dogru"] > 0 or row["Yanlis"] > 0:
+                    b = row["Toplam"] - (row["Dogru"] + row["Yanlis"])
+                    return b if b >= 0 else 0
+                return 0
+            
+            df["Bos"] = df.apply(calculate_bos, axis=1)
 
             df["Tarih"] = pd.to_datetime(df["Tarih"], errors='coerce').dt.date
             return df
@@ -1054,7 +1059,8 @@ def main_app():
             dashboard_data = filtered_df[(filtered_df["Tarih"] >= start_week) & (filtered_df["Tarih"] <= end_week)]
             metric_label = "Seçilen Hafta"
         elif period == "Aylık":
-            dashboard_data = filtered_df[pd.to_datetime(filtered_df["Tarih"]).apply(lambda x: x.month == dashboard_date.month and x.year == dashboard_date.year)]
+            dates = pd.to_datetime(filtered_df["Tarih"], errors='coerce')
+            dashboard_data = filtered_df[(dates.dt.month == dashboard_date.month) & (dates.dt.year == dashboard_date.year)]
             metric_label = "Seçilen Ay"
 
         # --- MOTIVATIONAL MESSAGES ---

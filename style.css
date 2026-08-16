@@ -1,26 +1,22 @@
 /* Modern Academic Design System */
 :root {
-    --bg-primary: #0f172a;
-    /* Slate 900 */
-    --bg-secondary: #1e293b;
-    /* Slate 800 */
-    --text-primary: #f8fafc;
-    /* Slate 50 */
-    --text-secondary: #94a3b8;
-    /* Slate 400 */
-    --accent-color: #38bdf8;
-    /* Sky 400 - Modern & Trustworthy */
-    --accent-glow: rgba(56, 189, 248, 0.3);
-    --gold: #fbbf24;
-    /* Amber 400 - Academic Excellence */
+    --bg-primary: #121212;
+    --bg-secondary: #1e1e1e;
+    --text-primary: #f5f5f5;
+    --text-secondary: #a0a0a0;
+    --accent-color: #8b1c31;
+    --accent-glow: rgba(139, 28, 49, 0.3);
+    --gold: #8b1c31;
 
     --font-heading: 'Outfit', sans-serif;
     --font-body: 'Inter', sans-serif;
 
     --transition: all 0.3s ease;
     --card-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
-    --glass-bg: rgba(30, 41, 59, 0.7);
+    --glass-bg: rgba(30, 30, 30, 0.7);
     --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+    --header-bg: rgba(18, 18, 18, 0.85);
+    --header-bg-scrolled: rgba(18, 18, 18, 0.95);
 }
 
 * {
@@ -35,6 +31,51 @@ body {
     font-family: var(--font-body);
     line-height: 1.6;
     overflow-x: hidden;
+}
+
+
+/* Theme Definitions */
+[data-theme="pink"] {
+    --bg-primary: #fff0f5; /* LavenderBlush - Light candy pink */
+    --bg-secondary: #ffe4e1; /* MistyRose */
+    --text-primary: #2d3748;
+    --text-secondary: #4a5568;
+    --accent-color: #ff1493; /* DeepPink */
+    --accent-glow: rgba(255, 20, 147, 0.3);
+    --gold: #ff69b4; /* HotPink */
+    
+    --glass-bg: rgba(255, 228, 225, 0.7);
+    --glass-border: 1px solid rgba(255, 20, 147, 0.2);
+    --header-bg: rgba(255, 240, 245, 0.85);
+    --header-bg-scrolled: rgba(255, 240, 245, 0.95);
+}
+
+.theme-toggle {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    transition: var(--transition);
+    margin-right: 20px;
+}
+
+.theme-toggle:hover {
+    color: var(--accent-color);
+    transform: scale(1.1);
+}
+
+header {
+    background: var(--header-bg) !important;
+    backdrop-filter: blur(10px);
+}
+
+header.scrolled {
+    background: var(--header-bg-scrolled) !important;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.2);
 }
 
 /* Typography */
@@ -73,8 +114,6 @@ header {
     left: 0;
     width: 100%;
     z-index: 1000;
-    background: rgba(15, 23, 42, 0.85);
-    backdrop-filter: blur(10px);
     border-bottom: var(--glass-border);
     transition: var(--transition);
 }
@@ -159,7 +198,7 @@ nav {
     height: 600px;
     background: radial-gradient(circle, var(--accent-glow), transparent 70%);
     border-radius: 50%;
-    filter: blur(80px);
+    filter: blur(120px); opacity: 0.5;
     z-index: -1;
 }
 
@@ -170,9 +209,9 @@ nav {
     left: -10%;
     width: 500px;
     height: 500px;
-    background: radial-gradient(circle, rgba(251, 191, 36, 0.1), transparent 70%);
+    background: radial-gradient(circle, rgba(139, 28, 49, 0.1), transparent 70%);
     border-radius: 50%;
-    filter: blur(80px);
+    filter: blur(120px); opacity: 0.5;
     z-index: -1;
 }
 
@@ -192,12 +231,12 @@ nav {
     display: inline-block;
     padding: 8px 16px;
     border-radius: 50px;
-    background: rgba(56, 189, 248, 0.1);
+    background: rgba(139, 28, 49, 0.1);
     color: var(--accent-color);
     font-size: 0.85rem;
     font-weight: 600;
     margin-bottom: 20px;
-    border: 1px solid rgba(56, 189, 248, 0.2);
+    border: 1px solid rgba(139, 28, 49, 0.2);
 }
 
 .hero h1 {
@@ -241,7 +280,7 @@ nav {
 .btn-primary:hover {
     background: transparent;
     color: var(--accent-color);
-    box-shadow: 0 0 20px var(--accent-glow);
+    box-shadow: 0 0 10px var(--accent-glow);
 }
 
 .btn-outline {
@@ -280,7 +319,7 @@ nav {
     border-radius: 50%;
     background: linear-gradient(45deg, var(--accent-color), transparent, var(--gold));
     z-index: -1;
-    animation: spin 10s linear infinite;
+    /* animation: spin 10s linear infinite; */
 }
 
 .image-wrapper img {
@@ -288,12 +327,12 @@ nav {
     height: 100%;
     border-radius: 50%;
     object-fit: cover;
-    filter: grayscale(20%);
+    filter: grayscale(100%); opacity: 0.9;
     transition: var(--transition);
 }
 
 .image-wrapper:hover img {
-    filter: grayscale(0%);
+    filter: grayscale(0%); opacity: 1;
     transform: scale(1.02);
 }
 
@@ -421,7 +460,7 @@ nav {
 
 .work-card:hover {
     transform: translateY(-10px);
-    border-color: rgba(56, 189, 248, 0.3);
+    border-color: rgba(139, 28, 49, 0.3);
     box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
 }
 
@@ -592,12 +631,12 @@ footer {
 .announcement-item:hover {
     transform: translateX(10px);
     border-left-color: var(--accent-color);
-    background: rgba(30, 41, 59, 0.9);
+    background: rgba(30, 30, 30, 0.9);
 }
 
 .announcement-item.featured {
     border-left-color: var(--gold);
-    background: rgba(251, 191, 36, 0.05);
+    background: rgba(139, 28, 49, 0.05);
 }
 
 .announcement-date {
@@ -658,7 +697,7 @@ footer {
     padding-top: 150px;
     padding-bottom: 50px;
     text-align: center;
-    background: linear-gradient(180deg, rgba(15, 23, 42, 1) 0%, rgba(30, 41, 59, 1) 100%);
+    background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
 }
 
 .course-container {
@@ -677,7 +716,7 @@ footer {
 }
 
 .course-card:hover {
-    border-color: rgba(56, 189, 248, 0.3);
+    border-color: rgba(139, 28, 49, 0.3);
     box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
 }
 
@@ -725,7 +764,7 @@ footer {
     display: flex;
     align-items: center;
     padding: 10px 15px;
-    background: rgba(15, 23, 42, 0.5);
+    background: rgba(18, 18, 18, 0.5);
     border-radius: 8px;
     color: var(--text-secondary);
     font-size: 0.95rem;
@@ -734,9 +773,9 @@ footer {
 }
 
 .material-link:hover {
-    background: rgba(56, 189, 248, 0.1);
+    background: rgba(139, 28, 49, 0.1);
     color: var(--accent-color);
-    border-color: rgba(56, 189, 248, 0.2);
+    border-color: rgba(139, 28, 49, 0.2);
     transform: translateX(5px);
 }
 
@@ -861,8 +900,8 @@ footer {
 
 .course-card:hover {
     transform: translateY(-5px);
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(56, 189, 248, 0.5);
+    background: rgba(0, 0, 0, 0.08);
+    border-color: rgba(139, 28, 49, 0.5);
     /* Hover olunca mavi kenarlık */
     box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
 }
@@ -891,7 +930,7 @@ footer {
 }
 
 .skill-tag {
-    background: rgba(56, 189, 248, 0.1);
+    background: rgba(139, 28, 49, 0.1);
     color: #38bdf8;
     padding: 0.25rem 0.75rem;
     border-radius: 20px;
@@ -915,5 +954,6 @@ footer {
 }
 
 .material-link:hover {
-    background: rgba(56, 189, 248, 0.2) !important;
+    background: rgba(139, 28, 49, 0.2) !important;
 }
+/* Version 9 */
