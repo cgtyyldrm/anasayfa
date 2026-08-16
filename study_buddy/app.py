@@ -646,10 +646,9 @@ def edit_task(row_index, tarih, ders, konu):
 
 def update_task_progress(index, status, sure_saniye, dogru, yanlis, bos=0):
     url = st.secrets["connections"]["webapp_url"]
-    toplam = dogru + yanlis + bos
     payload = {
         "action": "complete", "rowIndex": index, "durum": status, 
-        "sure": sure_saniye, "dogru": dogru, "yanlis": yanlis, "bos": bos, "toplam": toplam
+        "sure": sure_saniye, "dogru": dogru, "yanlis": yanlis, "bos": bos
     }
     try: 
         response = requests.post(url, json=payload, timeout=10)
@@ -2139,14 +2138,39 @@ localElements.forEach(el => {{
                 
                 st.write("---")
                 
-            st.subheader("📊 Aylık Soru Performansı")
-            monthly_data = df[(df["Kullanıcı"] == user) & (pd.to_datetime(df["Tarih"]).dt.month == today.month)]
-            # Filter out Reading tasks for question stats
-            monthly_data = monthly_data[monthly_data["Ders"] != "Kitap Okuma"]
+            st.subheader(f"📊 {my_settings['type']} Soru Performansı")
             
-            if not monthly_data.empty:
-                st.bar_chart(monthly_data.groupby("Tarih")["Toplam"].sum())
-                st.caption("Günlük çözdüğün toplam soru sayısı")
+            import calendar
+            if my_settings["type"] == "Haftalık":
+                start_date = today - timedelta(days=today.weekday())
+                end_date = start_date + timedelta(days=6)
+                chart_data = df[(df["Kullanıcı"] == user) & (pd.to_datetime(df["Tarih"]).dt.date >= start_date) & (pd.to_datetime(df["Tarih"]).dt.date <= end_date)].copy()
+                idx = pd.date_range(start=start_date, end=end_date).date
+            else:
+                chart_data = df[(df["Kullanıcı"] == user) & (pd.to_datetime(df["Tarih"]).dt.month == today.month) & (pd.to_datetime(df["Tarih"]).dt.year == today.year)].copy()
+                start_date = today.replace(day=1)
+                last_day = calendar.monthrange(today.year, today.month)[1]
+                end_date = today.replace(day=last_day)
+                idx = pd.date_range(start=start_date, end=end_date).date
+            
+            # Filter out Reading tasks for question stats
+            chart_data = chart_data[chart_data["Ders"] != "Kitap Okuma"]
+            
+            # Use Dogru + Yanlis + Bos to chart actual solved questions, since Toplam is the target
+            chart_data["Cozulen"] = chart_data["Dogru"] + chart_data["Yanlis"] + chart_data["Bos"]
+            daily_sums = chart_data.groupby("Tarih")["Cozulen"].sum()
+            
+            # Reindex to ensure the chart shows the full week (Mon-Sun) or full month (1st-Last)
+            daily_sums = daily_sums.reindex(idx, fill_value=0)
+            
+            # Format index for better display
+            if my_settings["type"] == "Haftalık":
+                daily_sums.index = [format_date_tr(d).split(" ")[-1] for d in daily_sums.index] # Just day name
+            else:
+                daily_sums.index = [f"{d.day} {format_date_tr(d).split(' ')[1]}" for d in daily_sums.index] # Day and Month name
+                
+            st.bar_chart(daily_sums)
+            st.caption(f"Günlük çözdüğün toplam soru sayısı ({my_settings['type']} görünüm)")
 
 if st.session_state["authenticated_user"] is None:
     login_screen()
