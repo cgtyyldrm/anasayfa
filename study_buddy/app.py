@@ -993,7 +993,7 @@ def main_app():
                 goal_data = df[(df["Kullanıcı"] == user) & (df["Ders"] != "Kitap Okuma") & (pd.to_datetime(df["Tarih"]).dt.date >= start_date) & (pd.to_datetime(df["Tarih"]).dt.date <= end_date)]
             else:
                 goal_data = df[(df["Kullanıcı"] == user) & (df["Ders"] != "Kitap Okuma") & (pd.to_datetime(df["Tarih"]).dt.month == today.month) & (pd.to_datetime(df["Tarih"]).dt.year == today.year)]
-            current_total = goal_data["Toplam"].sum()
+            current_total = goal_data["Dogru"].sum() + goal_data["Yanlis"].sum() + goal_data["Bos"].sum()
             target = my_settings["target"]
             if current_total >= target:
                 st.toast(f"🎉 TEBRİKLER! {my_settings['type']} hedefin olan {target} soruya ulaştın!", icon="🏆")
@@ -1093,7 +1093,8 @@ def main_app():
                     st.balloons()
 
         total_time = format_text_duration(dashboard_data["Sure"].sum())
-        total_questions = dashboard_data["Toplam"].sum()
+        question_data = dashboard_data[dashboard_data["Ders"] != "Kitap Okuma"]
+        total_questions = question_data["Dogru"].sum() + question_data["Yanlis"].sum() + question_data["Bos"].sum()
         total_correct = dashboard_data["Dogru"].sum()
         total_wrong = dashboard_data["Yanlis"].sum()
         completed_count = len(dashboard_data[dashboard_data["Durum"] == "Tamamlandı"])
@@ -2110,7 +2111,7 @@ localElements.forEach(el => {{
             else:
                 goal_data = df[(df["Kullanıcı"] == user) & (df["Ders"] != "Kitap Okuma") & (pd.to_datetime(df["Tarih"]).dt.month == today.month) & (pd.to_datetime(df["Tarih"]).dt.year == today.year)]
             
-            current_total = goal_data["Toplam"].sum() if not goal_data.empty else 0
+            current_total = (goal_data["Dogru"].sum() + goal_data["Yanlis"].sum() + goal_data["Bos"].sum()) if not goal_data.empty else 0
             target = my_settings["target"]
             progress_ratio = min(current_total / target, 1.0) if target > 0 else 0
             
