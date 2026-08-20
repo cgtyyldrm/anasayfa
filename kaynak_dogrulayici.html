@@ -324,7 +324,7 @@ async function crossref(k){
     yayinci:null,kimlik:it.DOI||""}));
 }
 async function openalex(k){
-  const q=baslikSorgu(k.baslik).slice(0,300);
+  const q=baslikSorgu(k.baslik).slice(0,250);
   const d=await jget("https://api.openalex.org/works?per-page=3"+mailParam()+"&search="+encodeURIComponent(q));
   if(!d||!d.results) return [];
   return d.results.map(it=>{ const b=it.biblio||{};
@@ -338,7 +338,7 @@ async function openalex(k){
 }
 async function openaire(k){
   const d=await jget("https://api.openaire.eu/search/publications?format=json&size=3&title="+
-    encodeURIComponent(baslikSorgu(k.baslik).slice(0,120)));
+    encodeURIComponent(baslikSorgu(k.baslik).slice(0,250)));
   if(!d) return [];
   const kay=derinBul(d,"result").flat();
   return kay.slice(0,5).map(r=>{
@@ -355,7 +355,7 @@ async function openaire(k){
   }).filter(Boolean);
 }
 async function datacite(k){
-  const q=baslikSorgu(k.baslik).slice(0,110);
+  const q=baslikSorgu(k.baslik).slice(0,250);
   const d=await jget("https://api.datacite.org/dois?page[size]=3&query="+encodeURIComponent(q));
   if(!d||!d.data) return [];
   return d.data.map(it=>{ const a=it.attributes||{};
@@ -365,7 +365,7 @@ async function datacite(k){
 }
 async function googlebooks(k){
   const yaz=k.yazarlar[0]||"";
-  const bas=baslikSorgu(k.baslik).slice(0,90);
+  const bas=baslikSorgu(k.baslik).slice(0,250);
   const sorgular=[
     'intitle:"'+bas+'"'+(yaz?' inauthor:"'+yaz+'"':""),   // kati
     bas+" "+k.yazarlar.slice(0,3).join(" ")               // serbest metin (yedek)
@@ -386,11 +386,11 @@ async function googlebooks(k){
 async function openlibrary(k){
   const alanlar="&fields=title,author_name,publisher,first_publish_year,key";
   let d=await jget("https://openlibrary.org/search.json?limit=5"+alanlar+
-    "&title="+encodeURIComponent(baslikSorgu(k.baslik).slice(0,90))+"&author="+encodeURIComponent(k.yazarlar[0]||""));
+    "&title="+encodeURIComponent(baslikSorgu(k.baslik).slice(0,250))+"&author="+encodeURIComponent(k.yazarlar[0]||""));
   if(!d||!d.docs||!d.docs.length){
     await bekle(200);
     d=await jget("https://openlibrary.org/search.json?limit=5"+alanlar+"&q="+
-      encodeURIComponent(baslikSorgu(k.baslik).slice(0,90)+" "+k.yazarlar.slice(0,2).join(" ")));
+      encodeURIComponent(baslikSorgu(k.baslik).slice(0,250)+" "+k.yazarlar.slice(0,2).join(" ")));
   }
   if(!d||!d.docs) return [];
   return d.docs.map(it=>({kaynak:"OpenLibrary",baslik:it.title||"",
@@ -398,7 +398,7 @@ async function openlibrary(k){
     dergi:null,cilt:null,sayi:null,sayfa:null,yayinci:(it.publisher||[])[0]||null,kimlik:it.key||""}));
 }
 async function semanticscholar(k){
-  const q = encodeURIComponent(baslikSorgu(k.baslik).slice(0,100));
+  const q = encodeURIComponent(baslikSorgu(k.baslik).slice(0,250));
   const d = await jget("https://api.semanticscholar.org/graph/v1/paper/search?limit=3&fields=title,authors,year,venue,volume,issue,pages,externalIds&query="+q);
   if(!d||!d.data) return [];
   return d.data.map(it=>({
@@ -410,7 +410,7 @@ async function semanticscholar(k){
   }));
 }
 async function googlescholar(k){
-  const q = encodeURIComponent('"'+baslikSorgu(k.baslik).slice(0,75)+'"');
+  const q = encodeURIComponent(baslikSorgu(k.baslik).slice(0,250));
   const url = "https://scholar.google.com/scholar?q=" + q;
   const d = await jget("https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url));
   if (!d) return [];
@@ -578,7 +578,7 @@ $("#basla").onclick=async()=>{
     if(!r.it){
       hata++;
       const ipucu=(k.tur==="tez"||k.tur==="rapor")
-        ?'YÖK Tez Merkezi\'nde elle bakın → <a href="'+YOK+'" target="_blank" rel="noopener">'+YOK+'</a><br>arama: yazar="'+(k.yazarlar[0]||"")+'" · başlık="'+baslikTemiz(k.baslik).slice(0,70)+'"'
+        ?'YÖK Tez Merkezi\'nde elle bakın → <a href="'+YOK+'" target="_blank" rel="noopener">'+YOK+'</a><br>arama: yazar="'+(k.yazarlar[0]||"")+'" · başlık="'+baslikSorgu(k.baslik).slice(0,250)+'"'
         :null;
       const ayrinti=["Hiçbir veri tabanında eşleşme bulunamadı."].concat((r.gunluk||[]).map(x=>"  · "+x));
       kartEkle(i+1,"hata",k.tur,ham,ayrinti,null,[],ipucu,null,null,k);
@@ -623,7 +623,7 @@ function kartEkle(no,sinif,tur,ham,farklar,it,digerleri,ipucu,bak,notlar,k){
   const isaret=sinif==="iyi"?"✓":sinif==="uyari"?"⚠":"✗";
   let h='<div class="kbas"><span class="no">'+isaret+" "+no+'</span><span class="etiket">'+tur+(bak?" · "+bak:"")+'</span></div><div class="kunye">'+kacir(ham)+"</div>";
   if(k){
-    const scholarUrl="https://scholar.google.com/scholar?q="+encodeURIComponent('"'+baslikTemiz(k.baslik).slice(0,70)+'"'+(k.yazarlar[0]?" "+k.yazarlar[0]:""));
+    const scholarUrl="https://scholar.google.com/scholar?q="+encodeURIComponent(baslikSorgu(k.baslik).slice(0,250)+(k.yazarlar[0]?" "+k.yazarlar[0]:""));
     h+=`<div class="not" style="margin-top:4px;margin-bottom:6px"><a href="${scholarUrl}" target="_blank" rel="noopener" style="text-decoration:none;font-weight:600">🎓 Google Scholar'da Ara</a></div>`;
   }
   h+=farklar.map(f=>'<div class="fark">! '+kacir(f)+"</div>").join("");
