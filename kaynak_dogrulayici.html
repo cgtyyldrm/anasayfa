@@ -288,10 +288,16 @@ function kunyeCoz(ham){
 let sonHata=null;
 async function jget(u){
   try{
-    const r=await fetch(u,{headers:{Accept:"application/json"}});
+    const req = {headers:{Accept:"application/json"}};
+    if(window.AbortSignal && AbortSignal.timeout) req.signal = AbortSignal.timeout(6000);
+    const fetchPromise = fetch(u, req);
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 6500));
+    const r = await Promise.race([fetchPromise, timeoutPromise]);
     if(!r.ok){ sonHata="HTTP "+r.status; return null; }
-    sonHata=null; return await r.json();
-  }catch(e){ sonHata="bağlantı/CORS"; return null; }
+    sonHata=null; 
+    const text = await r.text();
+    try { return JSON.parse(text); } catch(e) { return text; }
+  }catch(e){ sonHata="bağlantı/zaman aşımı"; return null; }
 }
 const derinBul=(o,a,out=[])=>{
   if(Array.isArray(o)) o.forEach(x=>derinBul(x,a,out));
@@ -402,10 +408,11 @@ async function semanticscholar(k){
 async function googlescholar(k){
   const q = encodeURIComponent('"'+baslikTemiz(k.baslik).slice(0,75)+'"');
   const url = "https://scholar.google.com/scholar?q=" + q;
-  const d = await jget("https://api.allorigins.win/get?url=" + encodeURIComponent(url));
-  if (!d || !d.contents) return [];
+  const d = await jget("https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url));
+  if (!d) return [];
+  const contents = typeof d === "string" ? d : (d.contents || d.body || JSON.stringify(d));
   const parser = new DOMParser();
-  const doc = parser.parseFromString(d.contents, "text/html");
+  const doc = parser.parseFromString(contents, "text/html");
   if(doc.querySelector("#gs_captcha_c") || d.contents.includes("sorry/index")) {
     sonHata = "Google Bot Koruması (CAPTCHA)"; return [];
   }
