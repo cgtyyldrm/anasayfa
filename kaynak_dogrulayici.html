@@ -613,7 +613,7 @@ function kartEkle(no,sinif,tur,ham,farklar,it,digerleri,ipucu,bak,notlar,k){
   let h='<div class="kbas"><span class="no">'+isaret+" "+no+'</span><span class="etiket">'+tur+(bak?" · "+bak:"")+'</span></div><div class="kunye">'+kacir(ham)+"</div>";
   if(k){
     const scholarUrl="https://scholar.google.com/scholar?q="+encodeURIComponent('"'+baslikTemiz(k.baslik).slice(0,70)+'"'+(k.yazarlar[0]?" "+k.yazarlar[0]:""));
-    h+='<div class="not" style="margin-top:4px;margin-bottom:6px"><a href="'+scholarUrl+'" target="_blank" rel="noopener" style="text-decoration:none;font-weight:600">🎓 Google Scholar\\'da Ara</a></div>';
+    h+=`<div class="not" style="margin-top:4px;margin-bottom:6px"><a href="${scholarUrl}" target="_blank" rel="noopener" style="text-decoration:none;font-weight:600">🎓 Google Scholar'da Ara</a></div>`;
   }
   h+=farklar.map(f=>'<div class="fark">! '+kacir(f)+"</div>").join("");
   h+=(notlar||[]).map(x=>'<div class="not">ⓘ '+kacir(x)+"</div>").join("");
