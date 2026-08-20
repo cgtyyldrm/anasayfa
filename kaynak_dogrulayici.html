@@ -283,7 +283,10 @@ function kunyeCoz(ham){
   else if(/\(\d+\s*(?:st|nd|rd|th|\.)?\s*(?:ed|bs|baskı)/i.test(ham)||
           /(Press|Yayınları|Yayınevi|McGraw|Wiley|Springer|Elsevier|Routledge|Blackwell|Publisher)/.test(geri)) tur="kitap";
   else tur="rapor";
-  return {ham,yazarlar:soyadlar,ucnokta,yil,baslik,dergi,cilt,sayi,sayfa,tur};
+  let doi=null;
+  const doiMatch=ham.match(/\b(10\.\d{4,9}\/[-._;()/:A-Z0-9]+)\b/i);
+  if(doiMatch) doi=doiMatch[1].toLowerCase();
+  return {ham,yazarlar:soyadlar,ucnokta,yil,baslik,dergi,cilt,sayi,sayfa,tur,doi};
 }
 function baslikSorgu(s){
   if(!s)return "";
@@ -440,7 +443,14 @@ function enIyi(k,adaylar){
   const esik=(k.tur==="tez"||k.tur==="rapor")?0.42:0.55;
   let en=null,skor=0;
   for(const it of adaylar){
-    let s=benzerlik(baslikTemiz(k.baslik),baslikTemiz(it.baslik));
+    if(k.doi && it.kimlik && it.kimlik.toLowerCase().includes(k.doi)) {
+      return it;
+    }
+    const bk=baslikTemiz(k.baslik), bit=baslikTemiz(it.baslik);
+    let s=benzerlik(bk, bit);
+    if(bk.length>15 && bit.length>15 && (bk.startsWith(bit) || bit.startsWith(bk))) {
+      s=Math.max(s, 0.85);
+    }
     if(it.yil&&Math.abs(it.yil-k.yil)<=1) s+=0.15;
     if(it.yazarlar&&it.yazarlar.length&&k.yazarlar.length){
       const ilk=k.yazarlar[0];
@@ -477,8 +487,14 @@ function denetle(k,it){
     const n=s=>String(s).toLowerCase().replace(/[^0-9a-z]/g,"");
     if(n(k.sayfa)!==n(it.sayfa)) f.push("Sayfa: künyede "+k.sayfa+" · "+it.kaynak+" "+it.sayfa);
   }
-  if(benzerlik(baslikTemiz(k.baslik),baslikTemiz(it.baslik))<0.75)
-    f.push('Başlık: künyede "'+k.baslik.slice(0,60)+'…" · '+it.kaynak+' "'+it.baslik.slice(0,60)+'…"');
+  const bk=baslikTemiz(k.baslik), bit=baslikTemiz(it.baslik);
+  if(benzerlik(bk, bit)<0.75){
+    if(bk.length>15 && bit.length>15 && (bk.startsWith(bit) || bit.startsWith(bk))) {
+      n.push("Veri tabanındaki başlık alt başlığı içermiyor veya eksik: \""+it.baslik+"\"");
+    } else {
+      f.push('Başlık: künyede "'+k.baslik.slice(0,60)+'…" · '+it.kaynak+' "'+it.baslik.slice(0,60)+'…"');
+    }
+  }
   return {farklar:f,notlar:n};
 }
 const ozetSatiri=it=>{
