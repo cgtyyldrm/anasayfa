@@ -33,6 +33,14 @@ except Exception:
     stx = _stx()
     st.warning("`extra_streamlit_components` not installed — using fallback cookie manager.\nInstall with: pip install extra-streamlit-components")
 
+try:
+    st_fragment = st.fragment
+except AttributeError:
+    try:
+        st_fragment = st.experimental_fragment
+    except AttributeError:
+        st_fragment = lambda f: f
+
 # LOGO HANDLING
 def get_base64_image(image_path):
     try:
@@ -508,6 +516,7 @@ MOTIVATION_QUOTES = [
 ]
 
 # --- 4. Giriş Ekranı ---
+@st_fragment
 def login_screen():
     st.markdown('<div class="main-title">📚 Study Buddy</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="sub-title">"{random.choice(MOTIVATION_QUOTES)}"</div>', unsafe_allow_html=True)
@@ -558,6 +567,7 @@ def save_settings(settings):
         st.error(f"Ayarlar kaydedilemedi: {e}")
 
 # --- 5. Veri İşlemleri (API) ---
+@st.cache_data(ttl=60, show_spinner=False)
 def get_data():
     if "connections" not in st.secrets: return pd.DataFrame()
     url = st.secrets["connections"]["webapp_url"]
@@ -607,14 +617,15 @@ def get_remote_audio_base64(url):
     except: return None
 
 
-def add_task(tarih, kullanıcı, ders, konu):
+def add_task(tarih, kullanıcı, ders, konu, notlar=""):
     url = st.secrets["connections"]["webapp_url"]
-    payload = {"action": "add", "tarih": str(tarih), "kullanici": kullanıcı, "ders": ders, "konu": konu, "durum": "Planlandı", "notlar": ""}
+    payload = {"action": "add", "tarih": str(tarih), "kullanici": kullanıcı, "ders": ders, "konu": konu, "durum": "Planlandı", "notlar": notlar}
     try: 
         response = requests.post(url, json=payload, timeout=10)
         if response.status_code != 200:
             st.error(f"Ekleme Hatası: {response.text}")
         else:
+            get_data.clear()
             # Check for generic script errors if returned as 200 JSON
             try:
                 data = response.json()
@@ -631,6 +642,8 @@ def delete_task(row_index):
         response = requests.post(url, json=payload, timeout=10)
         if response.status_code != 200:
             st.error(f"Silme Hatası: {response.text}")
+        else:
+            get_data.clear()
     except Exception as e:
          st.error(f"Bağlantı Hatası (Silme): {e}")
 
@@ -641,6 +654,8 @@ def edit_task(row_index, tarih, ders, konu):
         response = requests.post(url, json=payload, timeout=10)
         if response.status_code != 200:
             st.error(f"Düzenleme Hatası: {response.text}")
+        else:
+            get_data.clear()
     except Exception as e:
          st.error(f"Bağlantı Hatası (Düzenleme): {e}")
 
@@ -655,7 +670,8 @@ def update_task_progress(index, status, sure_saniye, dogru, yanlis, bos=0):
         if response.status_code != 200:
             st.error(f"Güncelleme Hatası: {response.text}")
         else:
-             # Check JSON status
+            get_data.clear()
+            # Check JSON status
             try:
                 data = response.json()
                 if data.get("status") == "error":
@@ -684,7 +700,8 @@ def log_task(tarih, kullanıcı, ders, konu, sure_saniye, dogru=0, yanlis=0, bos
         if response.status_code != 200:
              st.error(f"Log Hatası: {response.text}")
         else:
-             # Check JSON
+            get_data.clear()
+            # Check JSON
             try:
                 data = response.json()
                 if data.get("status") == "error":
@@ -747,7 +764,137 @@ def check_achievements(df, user, today):
        if max_daily > 0 and today_total > max_daily:
             achievements.append(f"🏆 YENİ REKOR! Bugüne kadarki en çok çalıştığın gün! ({format_text_duration(today_total)})")
 
-   return achievements
+@st_fragment
+def admin_add_task_fragment(dashboard_date, active_student_filter):
+    with st.container(border=True):
+        c1, c2 = st.columns(2)
+        tarih_inp = c1.date_input("Tarih", dashboard_date)
+        
+        default_student_idx = 0
+        student_options = ["Berru", "Ela"]
+        if active_student_filter in student_options:
+            default_student_idx = student_options.index(active_student_filter)
+            
+        kisi_inp = c1.selectbox("Öğrenci", student_options, index=default_student_idx)
+        ders_inp = c2.selectbox("Ders", ["Matematik", "Fen", "Türkçe", "Sosyal", "Hayat Bilgisi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Kitap Okuma", "Diğer"])
+        
+        ders_map = {"Fen": "Fen Bilimleri", "Sosyal": "İnkılap Tarihi", "Din Kültürü ve Ahlak Bilgisi": "Din Kültürü"}
+        lgs_ders = ders_map.get(ders_inp, ders_inp)
+        
+        if lgs_ders in lm.LGS_CURRICULUM:
+            secilen_konu = c2.selectbox("Konu Kılavuzu", get_topic_options(lgs_ders), key="new_task_secilen")
+            if secilen_konu == "Özel (Kendin Yaz)" or secilen_konu.startswith("---"):
+                konu_inp = c2.text_input("Konu (İsteğe Bağlı)")
+            else:
+                konu_inp = secilen_konu
+        else:
+            konu_inp = c2.text_input("Konu (İsteğe Bağlı)")
+            
+        kaynak_inp = st.text_input("Kaynak / Ödev Detayı (İsteğe Bağlı)", placeholder="Örn: Okyanus Master Sayfa 15-20", key="admin_kaynak")
+        
+        if st.button("Ekle", use_container_width=True, type="primary"):
+            add_task(tarih_inp, kisi_inp, ders_inp, konu_inp, notlar=kaynak_inp)
+            st.success("Eklendi"); time.sleep(1); st.rerun()
+
+@st_fragment
+def student_free_study_fragment(today, user):
+    with st.container(border=True):
+        fs_ders = st.selectbox("Hangi Derse Çalışacaksın?", 
+                               ["Matematik", "Fen", "Türkçe", "Sosyal", "Hayat Bilgisi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Diğer"], key="fs_ders")
+        
+        ders_map = {"Fen": "Fen Bilimleri", "Sosyal": "İnkılap Tarihi", "Din Kültürü ve Ahlak Bilgisi": "Din Kültürü"}
+        fs_lgs_ders = ders_map.get(fs_ders, fs_ders)
+        
+        if fs_lgs_ders in lm.LGS_CURRICULUM:
+            fs_secilen_konu = st.selectbox("Konu Kılavuzu", get_topic_options(fs_lgs_ders), key="fs_secilen")
+            if fs_secilen_konu == "Özel (Kendin Yaz)" or fs_secilen_konu.startswith("---"):
+                fs_konu_inp = st.text_input("Konu (İsteğe Bağlı)", placeholder="Örn: Kesirler Test Çözümü", key="fs_konu_input")
+            else:
+                fs_konu_inp = fs_secilen_konu
+        else:
+            fs_konu_inp = st.text_input("Konu (İsteğe Bağlı)", placeholder="Örn: Kesirler Test Çözümü", key="fs_konu_input_2")
+            
+        fs_kaynak_inp = st.text_input("Kaynak (İsteğe Bağlı)", placeholder="Örn: Hız Yayınları Soru Bankası", key="fs_kaynak")
+        
+        if not fs_konu_inp:
+            fs_konu = "Serbest Çalışma"
+        else:
+            fs_konu = fs_konu_inp
+        
+        submitted = st.button("🚀 Listeme Ekle ve Başla", type="primary", use_container_width=True)
+        
+        if submitted:
+            add_task(today, user, fs_ders, fs_konu, notlar=fs_kaynak_inp)
+            st.balloons()
+            st.success("Harikasın! Görev listene eklendi. 'Görevlerim' sekmesinden BAŞLA diyebilirsin. 🏃‍♀️")
+            time.sleep(2)
+            st.rerun()
+
+@st_fragment
+def student_countdown_fragment():
+    with st.container(border=True):
+        cd_ders = st.selectbox("Hangi Ders?", 
+                               ["Matematik", "Fen", "Türkçe", "Sosyal", "Hayat Bilgisi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Diğer"], key="cd_ders")
+        
+        ders_map = {"Fen": "Fen Bilimleri", "Sosyal": "İnkılap Tarihi", "Din Kültürü ve Ahlak Bilgisi": "Din Kültürü"}
+        cd_lgs_ders = ders_map.get(cd_ders, cd_ders)
+        
+        if cd_lgs_ders in lm.LGS_CURRICULUM:
+            cd_secilen_konu = st.selectbox("Konu Kılavuzu", get_topic_options(cd_lgs_ders), key="cd_secilen")
+            if cd_secilen_konu == "Özel (Kendin Yaz)" or cd_secilen_konu.startswith("---"):
+                cd_konu_inp = st.text_input("Konu (Örn: Deneme Sınavı)", placeholder="Deneme Sınavı", key="cd_konu_input")
+            else:
+                cd_konu_inp = cd_secilen_konu
+        else:
+            cd_konu_inp = st.text_input("Konu (Örn: Deneme Sınavı)", placeholder="Deneme Sınavı", key="cd_konu_input_2")
+            
+        cd_kaynak_inp = st.text_input("Kaynak (İsteğe Bağlı)", placeholder="Örn: Nitelik Yayınları", key="cd_kaynak")
+            
+        cd_sure = st.number_input("Hedef Süre (Dakika)", min_value=1, max_value=180, value=40, step=5)
+        
+        if not cd_konu_inp:
+            cd_konu = "Süreli Test"
+        else:
+            cd_konu = cd_konu_inp
+            
+        if st.button("⏳ Geri Sayımı Başlat", type="primary", use_container_width=True):
+            st.session_state.timer_active = True
+            st.session_state.timer_running = False
+            st.session_state.timer_start_time = None
+            st.session_state.timer_accumulated = 0
+            st.session_state.temp_dogru = 0
+            st.session_state.temp_yanlis = 0
+            st.session_state.temp_bos = 0
+            st.session_state.current_task_info = {
+                "ders": cd_ders, 
+                "konu": cd_konu, 
+                "is_countdown": True,
+                "target_duration": cd_sure,
+                "notlar": cd_kaynak_inp
+            }
+            st.rerun()
+
+def get_topic_options(lesson):
+    if lesson not in lm.LGS_CURRICULUM:
+        return ["Özel (Kendin Yaz)"]
+    
+    curriculum = lm.LGS_CURRICULUM[lesson]
+    main_topics = []
+    
+    for topic in curriculum:
+        if ":" in topic:
+            main_t = topic.split(":")[0].strip() + " (Genel)"
+            if main_t not in main_topics:
+                main_topics.append(main_t)
+                
+    options = ["Özel (Kendin Yaz)", "Karma (Tüm Konular)"]
+    if main_topics:
+        options.extend(["--- ANA BAŞLIKLAR ---"])
+        options.extend(main_topics)
+        options.extend(["--- ALT KONULAR ---"])
+        
+    options.extend(curriculum)
+    return options
 
 # --- 7. ANA UYGULAMA ---
 def main_app():
@@ -935,7 +1082,7 @@ def main_app():
                          # Direct Log for Library Session
                          log_task(today, user, task['ders'], task['konu'], int(final_sec))
                     elif task.get("is_countdown", False):
-                         log_task(today, user, task['ders'], task['konu'], int(final_sec), st.session_state.temp_dogru, st.session_state.temp_yanlis, st.session_state.temp_bos, "Süreli Soru")
+                         log_task(today, user, task['ders'], task['konu'], int(final_sec), st.session_state.temp_dogru, st.session_state.temp_yanlis, st.session_state.temp_bos, task.get("notlar", "Süreli Soru"))
                     else:
                         # Update Task Progress for Normal Tasks
                         update_task_progress(task['index'], "Tamamlandı", int(final_sec), st.session_state.temp_dogru, st.session_state.temp_yanlis, st.session_state.temp_bos)
@@ -1904,23 +2051,7 @@ localElements.forEach(el => {{
             render_lgs_tab(user, is_admin=True, active_student_filter=active_student_filter)
 
         with tab2:
-            with st.container(border=True):
-                with st.form("new_task"):
-                    c1, c2 = st.columns(2)
-                    tarih_inp = c1.date_input("Tarih", dashboard_date)
-                    
-                    default_student_idx = 0
-                    student_options = ["Berru", "Ela"]
-                    if active_student_filter in student_options:
-                        default_student_idx = student_options.index(active_student_filter)
-                        
-                    kisi_inp = c1.selectbox("Öğrenci", student_options, index=default_student_idx)
-                    ders_inp = c2.selectbox("Ders", ["Matematik", "Fen", "Türkçe", "Sosyal", "Hayat Bilgisi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Kitap Okuma", "Diğer"])
-                    konu_inp = c2.text_input("Konu")
-                    
-                    if st.form_submit_button("Ekle", use_container_width=True):
-                        add_task(tarih_inp, kisi_inp, ders_inp, konu_inp)
-                        st.success("Eklendi"); time.sleep(1); st.rerun()
+            admin_add_task_fragment(dashboard_date, active_student_filter)
 
     else:
         # --- ÖĞRENCİ GÖRÜNÜMÜ ---
@@ -2037,56 +2168,12 @@ localElements.forEach(el => {{
         with tab3:
             st.subheader("➕ Serbest Çalışma")
             st.markdown("Canın ekstra çalışmak mı istiyor? Harikasın! 👇")
-            
-            with st.container(border=True):
-                with st.form("free_study_form"):
-                    
-                    fs_ders = st.selectbox("Hangi Derse Çalışacaksın?", 
-                                           ["Matematik", "Fen", "Türkçe", "Sosyal", "Hayat Bilgisi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Diğer"])
-                    fs_konu = st.text_input("Konu (İsteğe Bağlı)", placeholder="Örn: Kesirler Test Çözümü")
-                    
-                    if not fs_konu:
-                        fs_konu = "Serbest Çalışma"
-                    
-                    submitted = st.form_submit_button("🚀 Listeme Ekle ve Başla", type="primary", use_container_width=True)
-                    
-                    if submitted:
-                        # Bugünün tarihine ekle
-                        add_task(today, user, fs_ders, fs_konu)
-                        st.balloons()
-                        st.success("Harikasın! Görev listene eklendi. 'Görevlerim' sekmesinden BAŞLA diyebilirsin. 🏃‍♀️")
-                        time.sleep(2)
-                        st.rerun()
+            student_free_study_fragment(today, user)
 
         with tab4:
             st.subheader("⏳ Süreli Soru Çözümü")
             st.markdown("Hedef bir süre belirle ve geri sayım ile teste başla! 🎯")
-            
-            with st.container(border=True):
-                with st.form("countdown_test_form"):
-                    cd_ders = st.selectbox("Hangi Ders?", 
-                                           ["Matematik", "Fen", "Türkçe", "Sosyal", "Hayat Bilgisi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Diğer"], key="cd_ders")
-                    cd_konu = st.text_input("Konu (Örn: Deneme Sınavı)", placeholder="Deneme Sınavı")
-                    cd_sure = st.number_input("Hedef Süre (Dakika)", min_value=1, max_value=180, value=40, step=5)
-                    
-                    if not cd_konu:
-                        cd_konu = "Süreli Test"
-                        
-                    if st.form_submit_button("⏳ Geri Sayımı Başlat", type="primary", use_container_width=True):
-                         st.session_state.timer_active = True
-                         st.session_state.timer_running = False # Başla butonuna basılana kadar bekle
-                         st.session_state.timer_start_time = None
-                         st.session_state.timer_accumulated = 0
-                         st.session_state.temp_dogru = 0
-                         st.session_state.temp_yanlis = 0
-                         st.session_state.temp_bos = 0
-                         st.session_state.current_task_info = {
-                             "ders": cd_ders, 
-                             "konu": cd_konu, 
-                             "is_countdown": True,
-                             "target_duration": cd_sure
-                         }
-                         st.rerun()
+            student_countdown_fragment()
 
         with tab5:
             st.subheader("🎯 Hedefim")
@@ -2172,6 +2259,27 @@ localElements.forEach(el => {{
                 
             st.bar_chart(daily_sums)
             st.caption(f"Günlük çözdüğün toplam soru sayısı ({my_settings['type']} görünüm)")
+            
+            st.write("---")
+            st.subheader("🏷️ Konulara Göre Dağılım")
+            if not chart_data.empty:
+                import plotly.express as px
+                topic_data = chart_data.groupby(["Ders", "Konu"])["Cozulen"].sum().reset_index()
+                topic_data = topic_data[topic_data["Cozulen"] > 0]
+                
+                if not topic_data.empty:
+                    topic_data.rename(columns={"Cozulen": "Çözülen Soru"}, inplace=True)
+                    # For topics without a name, label them as 'Belirtilmedi'
+                    topic_data["Konu"] = topic_data["Konu"].replace("", "Belirtilmedi")
+                    
+                    fig_topic = px.sunburst(topic_data, path=["Ders", "Konu"], values="Çözülen Soru",
+                                            color="Ders", color_discrete_sequence=px.colors.qualitative.Pastel)
+                    fig_topic.update_layout(margin=dict(t=10, l=10, r=10, b=10))
+                    st.plotly_chart(fig_topic, use_container_width=True)
+                else:
+                    st.info("Bu dönemde hiç soru çözümü kaydedilmemiş.")
+            else:
+                st.info("Bu dönemde veri bulunmuyor.")
 
 if st.session_state["authenticated_user"] is None:
     login_screen()
