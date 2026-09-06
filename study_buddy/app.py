@@ -588,6 +588,13 @@ def get_data():
             for col in expected:
                 if col not in df.columns: df[col] = ""
             
+            # Eski veri isimlerini yenileriyle eşleştir
+            df["Ders"] = df["Ders"].replace({
+                "Fen": "Fen Bilimleri",
+                "Sosyal": "İnkılap Tarihi",
+                "Din Kültürü ve Ahlak Bilgisi": "Din Kültürü"
+            })
+            
             for col in ["Sure", "Dogru", "Yanlis", "Bos", "Toplam", "rowIndex"]:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
             
@@ -776,13 +783,10 @@ def admin_add_task_fragment(dashboard_date, active_student_filter):
             default_student_idx = student_options.index(active_student_filter)
             
         kisi_inp = c1.selectbox("Öğrenci", student_options, index=default_student_idx)
-        ders_inp = c2.selectbox("Ders", ["Matematik", "Fen", "Türkçe", "Sosyal", "Hayat Bilgisi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Kitap Okuma", "Diğer"])
+        ders_inp = c2.selectbox("Ders", ["Matematik", "Fen Bilimleri", "Türkçe", "İnkılap Tarihi", "Hayat Bilgisi", "İngilizce", "Din Kültürü", "Kitap Okuma", "Diğer"])
         
-        ders_map = {"Fen": "Fen Bilimleri", "Sosyal": "İnkılap Tarihi", "Din Kültürü ve Ahlak Bilgisi": "Din Kültürü"}
-        lgs_ders = ders_map.get(ders_inp, ders_inp)
-        
-        if lgs_ders in lm.LGS_CURRICULUM:
-            secilen_konu = c2.selectbox("Konu Kılavuzu", get_topic_options(lgs_ders), key="new_task_secilen")
+        if ders_inp in lm.LGS_CURRICULUM:
+            secilen_konu = c2.selectbox("Konu Kılavuzu", get_topic_options(ders_inp), key="new_task_secilen")
             if secilen_konu == "Özel (Kendin Yaz)" or secilen_konu.startswith("---"):
                 konu_inp = c2.text_input("Konu (İsteğe Bağlı)")
             else:
@@ -800,13 +804,10 @@ def admin_add_task_fragment(dashboard_date, active_student_filter):
 def student_free_study_fragment(today, user):
     with st.container(border=True):
         fs_ders = st.selectbox("Hangi Derse Çalışacaksın?", 
-                               ["Matematik", "Fen", "Türkçe", "Sosyal", "Hayat Bilgisi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Diğer"], key="fs_ders")
+                               ["Matematik", "Fen Bilimleri", "Türkçe", "İnkılap Tarihi", "Hayat Bilgisi", "İngilizce", "Din Kültürü", "Diğer"], key="fs_ders")
         
-        ders_map = {"Fen": "Fen Bilimleri", "Sosyal": "İnkılap Tarihi", "Din Kültürü ve Ahlak Bilgisi": "Din Kültürü"}
-        fs_lgs_ders = ders_map.get(fs_ders, fs_ders)
-        
-        if fs_lgs_ders in lm.LGS_CURRICULUM:
-            fs_secilen_konu = st.selectbox("Konu Kılavuzu", get_topic_options(fs_lgs_ders), key="fs_secilen")
+        if fs_ders in lm.LGS_CURRICULUM:
+            fs_secilen_konu = st.selectbox("Konu Kılavuzu", get_topic_options(fs_ders), key="fs_secilen")
             if fs_secilen_konu == "Özel (Kendin Yaz)" or fs_secilen_konu.startswith("---"):
                 fs_konu_inp = st.text_input("Konu (İsteğe Bağlı)", placeholder="Örn: Kesirler Test Çözümü", key="fs_konu_input")
             else:
@@ -834,13 +835,10 @@ def student_free_study_fragment(today, user):
 def student_countdown_fragment():
     with st.container(border=True):
         cd_ders = st.selectbox("Hangi Ders?", 
-                               ["Matematik", "Fen", "Türkçe", "Sosyal", "Hayat Bilgisi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Diğer"], key="cd_ders")
+                               ["Matematik", "Fen Bilimleri", "Türkçe", "İnkılap Tarihi", "Hayat Bilgisi", "İngilizce", "Din Kültürü", "Diğer"], key="cd_ders")
         
-        ders_map = {"Fen": "Fen Bilimleri", "Sosyal": "İnkılap Tarihi", "Din Kültürü ve Ahlak Bilgisi": "Din Kültürü"}
-        cd_lgs_ders = ders_map.get(cd_ders, cd_ders)
-        
-        if cd_lgs_ders in lm.LGS_CURRICULUM:
-            cd_secilen_konu = st.selectbox("Konu Kılavuzu", get_topic_options(cd_lgs_ders), key="cd_secilen")
+        if cd_ders in lm.LGS_CURRICULUM:
+            cd_secilen_konu = st.selectbox("Konu Kılavuzu", get_topic_options(cd_ders), key="cd_secilen")
             if cd_secilen_konu == "Özel (Kendin Yaz)" or cd_secilen_konu.startswith("---"):
                 cd_konu_inp = st.text_input("Konu (Örn: Deneme Sınavı)", placeholder="Deneme Sınavı", key="cd_konu_input")
             else:
@@ -1424,7 +1422,7 @@ localElements.forEach(el => {{
                     st.info(f"Düzenleniyor: {row.Kullanıcı} - {row.Ders}")
                     with st.form(f"edit_form_{index}"):
                         c_edit1, c_edit2, c_edit3 = st.columns(3)
-                        ders_list = ["Matematik", "Fen", "Türkçe", "Sosyal", "Hayat Bilgisi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi", "Kitap Okuma", "Diğer"]
+                        ders_list = ["Matematik", "Fen Bilimleri", "Türkçe", "İnkılap Tarihi", "Hayat Bilgisi", "İngilizce", "Din Kültürü", "Kitap Okuma", "Diğer"]
                         current_ders_idx = ders_list.index(row.Ders) if row.Ders in ders_list else 0
                         
                         new_tarih = c_edit1.date_input("Tarih", value=row.Tarih)
