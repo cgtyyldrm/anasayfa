@@ -1883,17 +1883,26 @@ localElements.forEach(el => {{
                             max_s = st.number_input(f"Toplam Soru Sayısı ({l_name})", min_value=1, value=l_info["soru_sayisi"], key=f"max_s_{l_name}")
                             st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
                             
+                            d_c1, d_c2, d_c3 = st.columns(3)
+                            d_val = d_c1.number_input(f"{l_name} Doğru", min_value=0, value=max_s, key=f"tot_d_{l_name}")
+                            y_val = d_c2.number_input(f"{l_name} Yanlış", min_value=0, value=0, key=f"tot_y_{l_name}")
+                            
+                            if d_val + y_val > max_s:
+                                st.warning(f"Doğru ve Yanlış toplamı ({d_val + y_val}), soru sayısını ({max_s}) aşıyor!")
+                                d_val = min(d_val, max_s)
+                                y_val = min(y_val, max_s - d_val)
+                                
+                            b_val = max(0, max_s - (d_val + y_val))
+                            d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
+                            
+                            topic_items = []
                             if is_detailed:
+                                st.markdown("<br><span style='font-size:0.9em; font-weight:600; color:#555;'>🎯 Konu Analizi (Soru/Doğru/Yanlış Girişi)</span>", unsafe_allow_html=True)
                                 selected_topics = st.multiselect(
-                                    f"{l_name} Çıkan Konular:",
+                                    f"Konu Seç (İsteğe Bağlı):",
                                     lm.LGS_CURRICULUM.get(l_name, []),
                                     key=f"top_sel_{l_name}"
                                 )
-                                
-                                topic_items = []
-                                t_dogru_sum = 0
-                                t_yanlis_sum = 0
-                                t_soru_sum = 0
                                 
                                 for top in selected_topics:
                                     st.markdown(f"**🔹 {top}**")
@@ -1904,48 +1913,15 @@ localElements.forEach(el => {{
                                     
                                     if d_cnt > s_cnt: d_cnt = s_cnt
                                     if y_cnt > s_cnt - d_cnt: y_cnt = s_cnt - d_cnt
-                                    
-                                    b_cnt = s_cnt - (d_cnt + y_cnt)
-                                    
-                                    t_dogru_sum += d_cnt
-                                    t_yanlis_sum += y_cnt
-                                    t_soru_sum += s_cnt
+                                    b_cnt = s_cnt - d_cnt - y_cnt
                                     
                                     topic_items.append({
                                         "konu": top, "soru": s_cnt, "dogru": d_cnt, "yanlis": y_cnt, "bos": b_cnt
                                     })
-                                
-                                d_c1, d_c2, d_c3 = st.columns(3)
-                                d_val = d_c1.number_input(f"{l_name} Toplam Doğru", min_value=0, value=max_s, key=f"tot_d_{l_name}")
-                                y_val = d_c2.number_input(f"{l_name} Toplam Yanlış", min_value=0, value=0, key=f"tot_y_{l_name}")
-                                
-                                if d_val + y_val > max_s:
-                                    st.warning(f"Doğru ve Yanlış toplamı ({d_val + y_val}), soru sayısını ({max_s}) aşıyor!")
-                                    d_val = min(d_val, max_s)
-                                    y_val = min(y_val, max_s - d_val)
                                     
-                                b_val = max(0, max_s - (d_val + y_val))
-                                d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
-                                
-                                dersler_payload[l_name] = {
-                                    "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": topic_items, "soru_sayisi": max_s
-                                }
-                            else:
-                                d_c1, d_c2, d_c3 = st.columns(3)
-                                d_val = d_c1.number_input(f"{l_name} Doğru", min_value=0, value=max_s, key=f"fast_d_{l_name}")
-                                y_val = d_c2.number_input(f"{l_name} Yanlış", min_value=0, value=0, key=f"fast_y_{l_name}")
-                                
-                                if d_val + y_val > max_s:
-                                    st.warning(f"Doğru ve Yanlış toplamı ({d_val + y_val}), soru sayısını ({max_s}) aşıyor!")
-                                    d_val = min(d_val, max_s)
-                                    y_val = min(y_val, max_s - d_val)
-                                    
-                                b_val = max(0, max_s - (d_val + y_val))
-                                d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
-                                
-                                dersler_payload[l_name] = {
-                                    "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": [], "soru_sayisi": max_s
-                                }
+                            dersler_payload[l_name] = {
+                                "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": topic_items, "soru_sayisi": max_s
+                            }
 
                 # SAYISAL BÖLÜM
                 with col_sayisal:
@@ -1959,17 +1935,26 @@ localElements.forEach(el => {{
                             max_s = st.number_input(f"Toplam Soru Sayısı ({l_name})", min_value=1, value=l_info["soru_sayisi"], key=f"max_s_{l_name}")
                             st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
                             
+                            d_c1, d_c2, d_c3 = st.columns(3)
+                            d_val = d_c1.number_input(f"{l_name} Doğru", min_value=0, value=max_s, key=f"tot_d_{l_name}")
+                            y_val = d_c2.number_input(f"{l_name} Yanlış", min_value=0, value=0, key=f"tot_y_{l_name}")
+                            
+                            if d_val + y_val > max_s:
+                                st.warning(f"Doğru ve Yanlış toplamı ({d_val + y_val}), soru sayısını ({max_s}) aşıyor!")
+                                d_val = min(d_val, max_s)
+                                y_val = min(y_val, max_s - d_val)
+                                
+                            b_val = max(0, max_s - (d_val + y_val))
+                            d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
+                            
+                            topic_items = []
                             if is_detailed:
+                                st.markdown("<br><span style='font-size:0.9em; font-weight:600; color:#555;'>🎯 Konu Analizi (Soru/Doğru/Yanlış Girişi)</span>", unsafe_allow_html=True)
                                 selected_topics = st.multiselect(
-                                    f"{l_name} Çıkan Konular:",
+                                    f"Konu Seç (İsteğe Bağlı):",
                                     lm.LGS_CURRICULUM.get(l_name, []),
                                     key=f"top_sel_{l_name}"
                                 )
-                                
-                                topic_items = []
-                                t_dogru_sum = 0
-                                t_yanlis_sum = 0
-                                t_soru_sum = 0
                                 
                                 for top in selected_topics:
                                     st.markdown(f"**🔹 {top}**")
@@ -1980,48 +1965,15 @@ localElements.forEach(el => {{
                                     
                                     if d_cnt > s_cnt: d_cnt = s_cnt
                                     if y_cnt > s_cnt - d_cnt: y_cnt = s_cnt - d_cnt
-                                    
-                                    b_cnt = s_cnt - (d_cnt + y_cnt)
-                                    
-                                    t_dogru_sum += d_cnt
-                                    t_yanlis_sum += y_cnt
-                                    t_soru_sum += s_cnt
+                                    b_cnt = s_cnt - d_cnt - y_cnt
                                     
                                     topic_items.append({
                                         "konu": top, "soru": s_cnt, "dogru": d_cnt, "yanlis": y_cnt, "bos": b_cnt
                                     })
-                                
-                                d_c1, d_c2, d_c3 = st.columns(3)
-                                d_val = d_c1.number_input(f"{l_name} Toplam Doğru", min_value=0, value=max_s, key=f"tot_d_{l_name}")
-                                y_val = d_c2.number_input(f"{l_name} Toplam Yanlış", min_value=0, value=0, key=f"tot_y_{l_name}")
-                                
-                                if d_val + y_val > max_s:
-                                    st.warning(f"Doğru ve Yanlış toplamı ({d_val + y_val}), soru sayısını ({max_s}) aşıyor!")
-                                    d_val = min(d_val, max_s)
-                                    y_val = min(y_val, max_s - d_val)
                                     
-                                b_val = max(0, max_s - (d_val + y_val))
-                                d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
-                                
-                                dersler_payload[l_name] = {
-                                    "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": topic_items, "soru_sayisi": max_s
-                                }
-                            else:
-                                d_c1, d_c2, d_c3 = st.columns(3)
-                                d_val = d_c1.number_input(f"{l_name} Doğru", min_value=0, value=max_s, key=f"fast_d_{l_name}")
-                                y_val = d_c2.number_input(f"{l_name} Yanlış", min_value=0, value=0, key=f"fast_y_{l_name}")
-                                
-                                if d_val + y_val > max_s:
-                                    st.warning(f"Doğru ve Yanlış toplamı ({d_val + y_val}), soru sayısını ({max_s}) aşıyor!")
-                                    d_val = min(d_val, max_s)
-                                    y_val = min(y_val, max_s - d_val)
-                                    
-                                b_val = max(0, max_s - (d_val + y_val))
-                                d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
-                                
-                                dersler_payload[l_name] = {
-                                    "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": [], "soru_sayisi": max_s
-                                }
+                            dersler_payload[l_name] = {
+                                "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": topic_items, "soru_sayisi": max_s
+                            }
 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
