@@ -1604,18 +1604,28 @@ localElements.forEach(el => {{
 
                 # 5 Big Metric Cards
                 m_c1, m_c2, m_c3, m_c4, m_c5 = st.columns(5)
+                
+                t_dogru = latest.get('toplam_dogru', sum(d.get('dogru',0) for d in latest.get('dersler',{}).values()))
+                t_yanlis = latest.get('toplam_yanlis', sum(d.get('yanlis',0) for d in latest.get('dersler',{}).values()))
+                t_bos = latest.get('toplam_bos', sum(d.get('bos',0) for d in latest.get('dersler',{}).values()))
+                t_puan = latest.get('tahmini_puan', latest.get('lgs_puani', 0))
+                
+                sozel_keys = ["Türkçe", "İnkılap Tarihi", "Sosyal Bilgiler", "Din Kültürü", "İngilizce"]
+                s_net = latest.get('sozel_net', sum(d.get('net', 0) for k,d in latest.get('dersler',{}).items() if k in sozel_keys))
+                say_net = latest.get('sayisal_net', sum(d.get('net', 0) for k,d in latest.get('dersler',{}).items() if k not in sozel_keys))
+                
                 with m_c1:
-                    tot_s = latest.get("toplam_dogru", 0) + latest.get("toplam_yanlis", 0) + latest.get("toplam_bos", 0)
+                    tot_s = t_dogru + t_yanlis + t_bos
                     tot_s = tot_s if tot_s > 0 else 90
                     st.metric("Toplam Net", f"{latest.get('toplam_net', 0):.2f} / {tot_s}")
                 with m_c2:
-                    st.metric("Tahmini LGS Puanı", f"{latest.get('tahmini_puan', 0):.1f} / 500")
+                    st.metric("Tahmini LGS Puanı", f"{t_puan:.1f} / 500")
                 with m_c3:
-                    st.metric("Doğru / Yanlış / Boş", f"{latest.get('toplam_dogru', 0)}D - {latest.get('toplam_yanlis', 0)}Y - {latest.get('toplam_bos', 0)}B")
+                    st.metric("Doğru / Yanlış / Boş", f"{t_dogru}D - {t_yanlis}Y - {t_bos}B")
                 with m_c4:
-                    st.metric("Sözel Net", f"{latest.get('sozel_net', 0):.2f} / 50")
+                    st.metric("Sözel Net", f"{s_net:.2f} / 50")
                 with m_c5:
-                    st.metric("Sayısal Net", f"{latest.get('sayisal_net', 0):.2f} / 40")
+                    st.metric("Sayısal Net", f"{say_net:.2f} / 40")
 
                 if latest.get("notlar"):
                     st.info(f"💡 **Deneme Notları:** {latest.get('notlar')}")
