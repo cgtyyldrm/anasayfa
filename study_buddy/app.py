@@ -2027,12 +2027,70 @@ localElements.forEach(el => {{
                             st.markdown(f"**Toplam Net:** `{ex.get('toplam_net', 0):.2f}` &nbsp;|&nbsp; **Tahmini Puan:** `{ex.get('tahmini_puan', 0):.1f}` &nbsp;|&nbsp; **D/Y/B:** `{ex.get('toplam_dogru', 0)}D / {ex.get('toplam_yanlis', 0)}Y / {ex.get('toplam_bos', 0)}B`")
                         with c_card2:
                             if is_admin:
+                                if st.button("✏️ Düzenle", key=f"edit_ex_btn_{ex.get('id')}", use_container_width=True):
+                                    st.session_state[f"editing_exam_{ex.get('id')}"] = not st.session_state.get(f"editing_exam_{ex.get('id')}", False)
+                                    
                                 if st.button("🗑️ Sil", key=f"del_ex_{ex.get('id')}", use_container_width=True):
                                     lm.delete_exam(ex.get('id'), api_url=webapp_url)
                                     st.success("Deneme silindi.")
                                     time.sleep(1)
                                     st.rerun()
                                     
+                        if st.session_state.get(f"editing_exam_{ex.get('id')}", False):
+                            st.markdown("---")
+                            st.markdown("#### ✏️ Denemeyi Düzenle")
+                            e_c1, e_c2 = st.columns(2)
+                            new_name = e_c1.text_input("Deneme Adı", value=ex.get("deneme_adi", ""), key=f"ename_{ex.get('id')}")
+                            
+                            try:
+                                cur_date = pd.to_datetime(ex.get("tarih")).date()
+                            except:
+                                cur_date = datetime.today().date()
+                            new_date = e_c2.date_input("Tarih", value=cur_date, key=f"edate_{ex.get('id')}")
+                            
+                            dersler_payload = ex.get("dersler", {})
+                            
+                            st.markdown("###### Ders Doğru/Yanlış Girişleri")
+                            for l_name, l_info in lm.LGS_LESSONS.items():
+                                if l_name in dersler_payload:
+                                    st.markdown(f"<span style='font-size:0.9em;'>**{l_info['icon']} {l_name}**</span>", unsafe_allow_html=True)
+                                    d_c1, d_c2 = st.columns(2)
+                                    cur_d = dersler_payload[l_name].get("dogru", 0)
+                                    cur_y = dersler_payload[l_name].get("yanlis", 0)
+                                    cur_s = dersler_payload[l_name].get("soru_sayisi", l_info["soru_sayisi"])
+                                    
+                                    new_d = d_c1.number_input(f"Doğru", min_value=0, value=int(cur_d), key=f"ed_{ex.get('id')}_{l_name}")
+                                    new_y = d_c2.number_input(f"Yanlış", min_value=0, value=int(cur_y), key=f"ey_{ex.get('id')}_{l_name}")
+                                    
+                                    dersler_payload[l_name]["dogru"] = new_d
+                                    dersler_payload[l_name]["yanlis"] = new_y
+                                    dersler_payload[l_name]["bos"] = max(0, cur_s - new_d - new_y)
+                                    dersler_payload[l_name]["net"] = lm.calculate_net(new_d, new_y)
+                                    dersler_payload[l_name]["basari_yuzdesi"] = (dersler_payload[l_name]["net"] / cur_s) * 100 if cur_s > 0 else 0
+                            
+                            if st.button("💾 Kaydet", key=f"esave_{ex.get('id')}", type="primary"):
+                                ex["deneme_adi"] = new_name
+                                ex["tarih"] = new_date.strftime("%Y-%m-%d")
+                                ex["dersler"] = dersler_payload
+                                
+                                tot_n = sum(d.get("net", 0) for d in dersler_payload.values())
+                                tot_d = sum(d.get("dogru", 0) for d in dersler_payload.values())
+                                tot_y = sum(d.get("yanlis", 0) for d in dersler_payload.values())
+                                tot_b = sum(d.get("bos", 0) for d in dersler_payload.values())
+                                ex["toplam_net"] = tot_n
+                                ex["toplam_dogru"] = tot_d
+                                ex["toplam_yanlis"] = tot_y
+                                ex["toplam_bos"] = tot_b
+                                ex["tahmini_puan"] = lm.calculate_lgs_score(dersler_payload)
+                                ex["basari_yuzdesi"] = (tot_n / 90.0) * 100
+                                
+                                lm.update_exam(ex.get('id'), ex, api_url=webapp_url)
+                                st.success("Deneme başarıyla güncellendi!")
+                                st.session_state[f"editing_exam_{ex.get('id')}"] = False
+                                time.sleep(1)
+                                st.rerun()
+                                
+                            st.markdown("---")
                         with st.expander("🔍 Ders ve Konu Detaylarını Görüntüle"):
                             d_rows = []
                             for l_name, l_info in lm.LGS_LESSONS.items():
