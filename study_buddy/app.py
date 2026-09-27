@@ -591,8 +591,17 @@ def get_data():
             # Eski veri isimlerini yenileriyle eşleştir
             df["Ders"] = df["Ders"].replace({
                 "Fen": "Fen Bilimleri",
-                "Sosyal": "İnkılap Tarihi",
                 "Din Kültürü ve Ahlak Bilgisi": "Din Kültürü"
+            })
+            
+            # Ela için Sosyal Bilgiler, Berru için İnkılap Tarihi olarak eşleştir
+            df.loc[df["Kullanıcı"] == "Ela", "Ders"] = df.loc[df["Kullanıcı"] == "Ela", "Ders"].replace({
+                "Sosyal": "Sosyal Bilgiler",
+                "İnkılap Tarihi": "Sosyal Bilgiler"
+            })
+            df.loc[df["Kullanıcı"] != "Ela", "Ders"] = df.loc[df["Kullanıcı"] != "Ela", "Ders"].replace({
+                "Sosyal": "İnkılap Tarihi",
+                "Sosyal Bilgiler": "İnkılap Tarihi"
             })
             
             for col in ["Sure", "Dogru", "Yanlis", "Bos", "Toplam", "rowIndex"]:
@@ -783,7 +792,8 @@ def admin_add_task_fragment(dashboard_date, active_student_filter):
             default_student_idx = student_options.index(active_student_filter)
             
         kisi_inp = c1.selectbox("Öğrenci", student_options, index=default_student_idx)
-        ders_inp = c2.selectbox("Ders", ["Matematik", "Fen Bilimleri", "Türkçe", "İnkılap Tarihi", "Hayat Bilgisi", "İngilizce", "Din Kültürü", "Kitap Okuma", "Diğer"])
+        ders_list = ["Matematik", "Fen Bilimleri", "Türkçe", "Sosyal Bilgiler" if kisi_inp == "Ela" else "İnkılap Tarihi", "Hayat Bilgisi", "İngilizce", "Din Kültürü", "Kitap Okuma", "Diğer"]
+        ders_inp = c2.selectbox("Ders", ders_list)
         
         if ders_inp in lm.LGS_CURRICULUM:
             secilen_konu = c2.selectbox("Konu Kılavuzu", get_topic_options(ders_inp), key="new_task_secilen")
@@ -803,8 +813,8 @@ def admin_add_task_fragment(dashboard_date, active_student_filter):
 @st_fragment
 def student_free_study_fragment(today, user):
     with st.container(border=True):
-        fs_ders = st.selectbox("Hangi Derse Çalışacaksın?", 
-                               ["Matematik", "Fen Bilimleri", "Türkçe", "İnkılap Tarihi", "Hayat Bilgisi", "İngilizce", "Din Kültürü", "Diğer"], key="fs_ders")
+        fs_ders_list = ["Matematik", "Fen Bilimleri", "Türkçe", "Sosyal Bilgiler" if user == "Ela" else "İnkılap Tarihi", "Hayat Bilgisi", "İngilizce", "Din Kültürü", "Diğer"]
+        fs_ders = st.selectbox("Hangi Derse Çalışacaksın?", fs_ders_list, key="fs_ders")
         
         if fs_ders in lm.LGS_CURRICULUM:
             fs_secilen_konu = st.selectbox("Konu Kılavuzu", get_topic_options(fs_ders), key="fs_secilen")
@@ -834,8 +844,9 @@ def student_free_study_fragment(today, user):
 @st_fragment
 def student_countdown_fragment():
     with st.container(border=True):
-        cd_ders = st.selectbox("Hangi Ders?", 
-                               ["Matematik", "Fen Bilimleri", "Türkçe", "İnkılap Tarihi", "Hayat Bilgisi", "İngilizce", "Din Kültürü", "Diğer"], key="cd_ders")
+        current_user = st.session_state.get("authenticated_user", "")
+        cd_ders_list = ["Matematik", "Fen Bilimleri", "Türkçe", "Sosyal Bilgiler" if current_user == "Ela" else "İnkılap Tarihi", "Hayat Bilgisi", "İngilizce", "Din Kültürü", "Diğer"]
+        cd_ders = st.selectbox("Hangi Ders?", cd_ders_list, key="cd_ders")
         
         if cd_ders in lm.LGS_CURRICULUM:
             cd_secilen_konu = st.selectbox("Konu Kılavuzu", get_topic_options(cd_ders), key="cd_secilen")
@@ -1464,7 +1475,7 @@ localElements.forEach(el => {{
                     st.info(f"Düzenleniyor: {row.Kullanıcı} - {row.Ders}")
                     with st.form(f"edit_form_{index}"):
                         c_edit1, c_edit2, c_edit3 = st.columns(3)
-                        ders_list = ["Matematik", "Fen Bilimleri", "Türkçe", "İnkılap Tarihi", "Hayat Bilgisi", "İngilizce", "Din Kültürü", "Kitap Okuma", "Diğer"]
+                        ders_list = ["Matematik", "Fen Bilimleri", "Türkçe", "Sosyal Bilgiler" if row["Kullanıcı"] == "Ela" else "İnkılap Tarihi", "Hayat Bilgisi", "İngilizce", "Din Kültürü", "Kitap Okuma", "Diğer"]
                         current_ders_idx = ders_list.index(row.Ders) if row.Ders in ders_list else 0
                         
                         new_tarih = c_edit1.date_input("Tarih", value=row.Tarih)
