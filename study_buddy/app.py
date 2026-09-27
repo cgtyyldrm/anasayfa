@@ -2024,7 +2024,12 @@ localElements.forEach(el => {{
                         c_card1, c_card2 = st.columns([3, 1])
                         with c_card1:
                             st.markdown(f"**🏆 {ex.get('deneme_adi')}** ({ex.get('yayin')}) &nbsp;|&nbsp; 📅 {ex.get('tarih')} &nbsp;|&nbsp; ⏱️ {ex.get('sure_dk')} dk &nbsp;|&nbsp; 🎯 Zorluk: {ex.get('zorluk')}")
-                            st.markdown(f"**Toplam Net:** `{ex.get('toplam_net', 0):.2f}` &nbsp;|&nbsp; **Tahmini Puan:** `{ex.get('tahmini_puan', 0):.1f}` &nbsp;|&nbsp; **D/Y/B:** `{ex.get('toplam_dogru', 0)}D / {ex.get('toplam_yanlis', 0)}Y / {ex.get('toplam_bos', 0)}B`")
+                            
+                            t_dogru = ex.get('toplam_dogru', sum(d.get('dogru',0) for d in ex.get('dersler',{}).values()))
+                            t_yanlis = ex.get('toplam_yanlis', sum(d.get('yanlis',0) for d in ex.get('dersler',{}).values()))
+                            t_bos = ex.get('toplam_bos', sum(d.get('bos',0) for d in ex.get('dersler',{}).values()))
+                            t_puan = ex.get('tahmini_puan', ex.get('lgs_puani', 0))
+                            st.markdown(f"**Toplam Net:** `{ex.get('toplam_net', 0):.2f}` &nbsp;|&nbsp; **Tahmini Puan:** `{t_puan:.1f}` &nbsp;|&nbsp; **D/Y/B:** `{t_dogru}D / {t_yanlis}Y / {t_bos}B`")
                         with c_card2:
                             if is_admin:
                                 if st.button("✏️ Düzenle", key=f"edit_ex_btn_{ex.get('id')}", use_container_width=True):
@@ -2067,6 +2072,24 @@ localElements.forEach(el => {{
                                     dersler_payload[l_name]["bos"] = max(0, cur_s - new_d - new_y)
                                     dersler_payload[l_name]["net"] = lm.calculate_net(new_d, new_y)
                                     dersler_payload[l_name]["basari_yuzdesi"] = (dersler_payload[l_name]["net"] / cur_s) * 100 if cur_s > 0 else 0
+                                    
+                                    # Mevcut konuları düzenleme
+                                    cur_topics = dersler_payload[l_name].get("konular", [])
+                                    if cur_topics:
+                                        with st.expander(f"🎯 {l_name} Konu Hatalarını Düzenle"):
+                                            for idx, t in enumerate(cur_topics):
+                                                st.caption(f"🔹 {t.get('konu')}")
+                                                t_c1, t_c2, t_c3 = st.columns(3)
+                                                ns = t_c1.number_input("Soru", min_value=1, value=int(t.get('soru', 1)), key=f"ets_{ex.get('id')}_{l_name}_{idx}")
+                                                nd = t_c2.number_input("Doğru", min_value=0, value=int(t.get('dogru', 0)), key=f"etd_{ex.get('id')}_{l_name}_{idx}")
+                                                ny = t_c3.number_input("Yanlış", min_value=0, value=int(t.get('yanlis', 0)), key=f"ety_{ex.get('id')}_{l_name}_{idx}")
+                                                if nd > ns: nd = ns
+                                                if ny > ns - nd: ny = ns - nd
+                                                
+                                                t['soru'] = ns
+                                                t['dogru'] = nd
+                                                t['yanlis'] = ny
+                                                t['bos'] = ns - nd - ny
                             
                             if st.button("💾 Kaydet", key=f"esave_{ex.get('id')}", type="primary"):
                                 ex["deneme_adi"] = new_name
