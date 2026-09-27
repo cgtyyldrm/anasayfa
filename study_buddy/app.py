@@ -1614,6 +1614,12 @@ localElements.forEach(el => {{
                 s_net = latest.get('sozel_net', sum(d.get('net', 0) for k,d in latest.get('dersler',{}).items() if k in sozel_keys))
                 say_net = latest.get('sayisal_net', sum(d.get('net', 0) for k,d in latest.get('dersler',{}).items() if k not in sozel_keys))
                 
+                sozel_tot = sum((d.get('dogru',0)+d.get('yanlis',0)+d.get('bos',0)) for k,d in latest.get('dersler',{}).items() if k in sozel_keys)
+                sayisal_tot = sum((d.get('dogru',0)+d.get('yanlis',0)+d.get('bos',0)) for k,d in latest.get('dersler',{}).items() if k not in sozel_keys)
+                
+                sozel_tot = sozel_tot if sozel_tot > 0 else 50
+                sayisal_tot = sayisal_tot if sayisal_tot > 0 else 40
+                
                 with m_c1:
                     tot_s = t_dogru + t_yanlis + t_bos
                     tot_s = tot_s if tot_s > 0 else 90
@@ -1623,9 +1629,9 @@ localElements.forEach(el => {{
                 with m_c3:
                     st.metric("Doğru / Yanlış / Boş", f"{t_dogru}D - {t_yanlis}Y - {t_bos}B")
                 with m_c4:
-                    st.metric("Sözel Net", f"{s_net:.2f} / 50")
+                    st.metric("Sözel Net", f"{s_net:.2f} / {sozel_tot}")
                 with m_c5:
-                    st.metric("Sayısal Net", f"{say_net:.2f} / 40")
+                    st.metric("Sayısal Net", f"{say_net:.2f} / {sayisal_tot}")
 
                 if latest.get("notlar"):
                     st.info(f"💡 **Deneme Notları:** {latest.get('notlar')}")
