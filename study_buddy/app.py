@@ -1256,12 +1256,35 @@ def main_app():
                     """, unsafe_allow_html=True)
                     st.balloons()
 
-        total_time = format_text_duration(dashboard_data["Sure"].sum())
+        webapp_url = st.secrets.get("connections", {}).get("webapp_url") if "connections" in st.secrets else None
+        student_for_exams = active_student_filter if active_student_filter and active_student_filter != "Tümü" else user
+        all_exams = lm.get_student_exams(student_for_exams, api_url=webapp_url)
+        
+        filtered_exams = []
+        for ex in all_exams:
+            ex_date_str = ex.get("tarih")
+            try:
+                ex_date = pd.to_datetime(ex_date_str).date()
+                if period == "Günlük" and ex_date == dashboard_date:
+                    filtered_exams.append(ex)
+                elif period == "Haftalık" and start_week <= ex_date <= end_week:
+                    filtered_exams.append(ex)
+                elif period == "Aylık" and ex_date.month == dashboard_date.month and ex_date.year == dashboard_date.year:
+                    filtered_exams.append(ex)
+            except:
+                pass
+                
+        lgs_sure = sum(ex.get("sure_dk", 0) * 60 for ex in filtered_exams)
+        lgs_soru = sum(ex.get("toplam_soru", 0) for ex in filtered_exams)
+        lgs_dogru = sum(ex.get("toplam_dogru", 0) for ex in filtered_exams)
+        lgs_yanlis = sum(ex.get("toplam_yanlis", 0) for ex in filtered_exams)
+        
+        total_time = format_text_duration(dashboard_data["Sure"].sum() + lgs_sure)
         question_data = dashboard_data[dashboard_data["Ders"] != "Kitap Okuma"]
-        total_questions = question_data["Dogru"].sum() + question_data["Yanlis"].sum() + question_data["Bos"].sum()
-        total_correct = dashboard_data["Dogru"].sum()
-        total_wrong = dashboard_data["Yanlis"].sum()
-        completed_count = len(dashboard_data[dashboard_data["Durum"] == "Tamamlandı"])
+        total_questions = question_data["Dogru"].sum() + question_data["Yanlis"].sum() + question_data["Bos"].sum() + lgs_soru
+        total_correct = dashboard_data["Dogru"].sum() + lgs_dogru
+        total_wrong = dashboard_data["Yanlis"].sum() + lgs_yanlis
+        completed_count = len(dashboard_data[dashboard_data["Durum"] == "Tamamlandı"]) + len(filtered_exams)
         
         # Calculate Reading Time
         reading_data = dashboard_data[dashboard_data["Ders"] == "Kitap Okuma"]
@@ -2276,6 +2299,20 @@ localElements.forEach(el => {{
                 goal_data = df[(df["Kullanıcı"] == user) & (df["Ders"] != "Kitap Okuma") & (pd.to_datetime(df["Tarih"]).dt.month == today.month) & (pd.to_datetime(df["Tarih"]).dt.year == today.year)]
             
             current_total = (goal_data["Dogru"].sum() + goal_data["Yanlis"].sum() + goal_data["Bos"].sum()) if not goal_data.empty else 0
+            
+            # Hedefe LGS sorularını da ekle
+            webapp_url = st.secrets.get("connections", {}).get("webapp_url") if "connections" in st.secrets else None
+            goal_exams = lm.get_student_exams(user, api_url=webapp_url)
+            for ex in goal_exams:
+                try:
+                    ex_d = pd.to_datetime(ex.get("tarih")).date()
+                    if my_settings["type"] == "Haftalık" and (start_date <= ex_d <= end_date):
+                        current_total += ex.get("toplam_soru", 0)
+                    elif my_settings["type"] == "Aylık" and (ex_d.month == today.month and ex_d.year == today.year):
+                        current_total += ex.get("toplam_soru", 0)
+                except:
+                    pass
+            
             target = my_settings["target"]
             progress_ratio = min(current_total / target, 1.0) if target > 0 else 0
             
@@ -2324,6 +2361,25 @@ localElements.forEach(el => {{
             # Use Dogru + Yanlis + Bos to chart actual solved questions, since Toplam is the target
             chart_data["Cozulen"] = chart_data["Dogru"] + chart_data["Yanlis"] + chart_data["Bos"]
             daily_sums = chart_data.groupby("Tarih")["Cozulen"].sum()
+            
+            # LGS sorularını daily_sums'a ekle
+            for ex in goal_exams:
+                try:
+                    ex_d_str = ex.get("tarih")
+                    ex_d = pd.to_datetime(ex_d_str).date()
+                    if ex_d_str in daily_sums.index:
+                        daily_sums[ex_d_str] += ex.get("toplam_soru", 0)
+                    else:
+                        # Ensure the string is formatted properly if it's new
+                        daily_sums[ex_d_str] = ex.get("toplam_soru", 0)
+                except:
+                    pass
+            
+            # Formata uymayan tarihleri temizle
+            daily_sums.index = pd.to_datetime(daily_sums.index).date
+            
+            # Combine duplicate dates that might have been created
+            daily_sums = daily_sums.groupby(daily_sums.index).sum()
             
             # Reindex to ensure the chart shows the full week (Mon-Sun) or full month (1st-Last)
             daily_sums = daily_sums.reindex(idx, fill_value=0)
