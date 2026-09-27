@@ -355,7 +355,7 @@ def calculate_net(dogru, yanlis):
     net = dogru - (yanlis / 3.0)
     return round(max(0.0, net), 2)
 
-def calculate_lgs_score(lesson_nets):
+def calculate_lgs_score(lesson_nets, dersler_data=None):
     """
     MEB yaklaşık LGS Puanı hesaplama simülasyonu (100 - 500 Puan).
     Taban Puan: 195.50
@@ -371,6 +371,12 @@ def calculate_lgs_score(lesson_nets):
     total_added = 0.0
     for lesson, info in LGS_LESSONS.items():
         net = lesson_nets.get(lesson, 0.0)
+        
+        if dersler_data and lesson in dersler_data:
+            actual_soru = dersler_data[lesson].get("soru_sayisi", info["soru_sayisi"])
+            if actual_soru > 0 and actual_soru != info["soru_sayisi"]:
+                net = net * (info["soru_sayisi"] / actual_soru)
+                
         puan_kat = info["puan_kat"]
         total_added += net * puan_kat
     
@@ -444,7 +450,7 @@ def create_exam_record(ogrenci, deneme_adi, yayin, tarih, sure_dk, zorluk, notla
         }
     
     toplam_net = round(sozel_net + sayisal_net, 2)
-    tahmini_puan = calculate_lgs_score(lesson_nets)
+    tahmini_puan = calculate_lgs_score(lesson_nets, dersler_data)
     
     exam_obj = {
         "id": exam_id,
