@@ -1571,7 +1571,9 @@ localElements.forEach(el => {{
                 # 5 Big Metric Cards
                 m_c1, m_c2, m_c3, m_c4, m_c5 = st.columns(5)
                 with m_c1:
-                    st.metric("Toplam Net", f"{latest.get('toplam_net', 0):.2f} / 90")
+                    tot_s = latest.get("toplam_dogru", 0) + latest.get("toplam_yanlis", 0) + latest.get("toplam_bos", 0)
+                    tot_s = tot_s if tot_s > 0 else 90
+                    st.metric("Toplam Net", f"{latest.get('toplam_net', 0):.2f} / {tot_s}")
                 with m_c2:
                     st.metric("Tahmini LGS Puanı", f"{latest.get('tahmini_puan', 0):.1f} / 500")
                 with m_c3:
@@ -2036,7 +2038,7 @@ localElements.forEach(el => {{
                 st.markdown(f"""
                 <div style='background: #FFF0F5; border: 2px solid #F48FB1; border-radius: 14px; padding: 14px 20px; text-align: center; margin-bottom: 15px;'>
                     <span style='font-size: 1.15rem; font-weight: 800; color: #880E4F;'>
-                        🎯 Hesaplanan Toplam Net: <span style='color:#D81B60;'>{calc_toplam_net:.2f} / 90</span> &nbsp;|&nbsp; 
+                        🎯 Hesaplanan Toplam Net: <span style='color:#D81B60;'>{calc_toplam_net:.2f} / {sum(dersler_payload[l]["soru_sayisi"] for l in lm.LGS_LESSONS.keys())}</span> &nbsp;|&nbsp; 
                         Sözel: {calc_sozel_net:.2f} &nbsp;|&nbsp; Sayısal: {calc_sayisal_net:.2f} &nbsp;|&nbsp; 
                         Tahmini LGS Puanı: <span style='color:#8E24AA;'>{calc_puan:.1f} Puan</span>
                     </span>
