@@ -960,74 +960,83 @@ def main_app():
             st.markdown(f"<div style='text-align:center; color:gray;'>{task['konu']}</div>", unsafe_allow_html=True)
             st.divider()
 
-            current_time = time.time()
-            
-            # --- READING/COUNTDOWN MODE SPECIFIC LOGIC ---
-            if is_reading_mode or is_countdown_mode:
-                if is_reading_mode:
-                    if "reading_duration" not in st.session_state:
-                        st.session_state.reading_duration = 15 # Default
-                    if not st.session_state.timer_running and st.session_state.timer_accumulated == 0:
-                         st.info("Ne kadar kitap okuyacaksın?")
-                         dur = st.slider("Süre (Dakika)", 5, 60, 15, step=5)
-                         st.session_state.reading_duration = dur
-                    target_seconds = st.session_state.get("reading_duration", 15) * 60
+            # --- SAYAÇ FRAGMENTİ ---
+            @st.fragment(run_every=1)
+            def live_timer():
+                if not st.session_state.timer_active:
+                    return
+                current_time = time.time()
+                remaining = 0
+                
+                if is_reading_mode or is_countdown_mode:
+                    if is_reading_mode:
+                        target_seconds = st.session_state.get("reading_duration", 15) * 60
+                    else:
+                        target_seconds = task.get("target_duration", 15) * 60
+                    
+                    elapsed_since_start = (current_time - st.session_state.timer_start_time) if st.session_state.timer_running else 0
+                    total_elapsed = st.session_state.timer_accumulated + elapsed_since_start
+                    remaining = max(0, target_seconds - total_elapsed)
+                    
+                    if remaining == 0 and st.session_state.timer_running:
+                         st.session_state.timer_running = False
+                         st.session_state.timer_accumulated = total_elapsed
+                         st.session_state.timer_just_finished = True
+                         st.rerun()
+                         
+                    st.markdown(f"<div style='text-align: center; font-size: 80px; color: #D81B60;' class='timer-font'>{format_timer_display(remaining)}</div>", unsafe_allow_html=True)
                 else:
-                    target_seconds = task.get("target_duration", 15) * 60
-                
-                elapsed_since_start = (current_time - st.session_state.timer_start_time) if st.session_state.timer_running else 0
-                total_elapsed = st.session_state.timer_accumulated + elapsed_since_start
-                remaining = max(0, target_seconds - total_elapsed)
-                
-# --- SAYAÇ BİTİŞ: TİTREŞİM VE GÖRSEL UYARI ---
-                if remaining == 0 and st.session_state.timer_running:
-                     st.session_state.timer_running = False
-                     st.session_state.timer_accumulated = total_elapsed
+                    elapsed = st.session_state.timer_accumulated + (current_time - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
+                    st.markdown(f"<div style='text-align: center; font-size: 80px; color: #D81B60;' class='timer-font'>{format_timer_display(elapsed)}</div>", unsafe_allow_html=True)
+
+            if is_reading_mode:
+                if "reading_duration" not in st.session_state:
+                    st.session_state.reading_duration = 15 # Default
+                if not st.session_state.timer_running and st.session_state.timer_accumulated == 0:
+                     st.info("Ne kadar kitap okuyacaksın?")
+                     dur = st.slider("Süre (Dakika)", 5, 60, 15, step=5)
+                     st.session_state.reading_duration = dur
                      
-                     st.balloons()
-                     st.success("🎉 SÜRE DOLDU! Harikasın!")
-                     
-                     js_alert = """
-                        <script>
-                            if (navigator.vibrate) {
-                                navigator.vibrate([500, 200, 500, 200, 1000]);
+            if st.session_state.get("timer_just_finished", False):
+                 st.session_state.timer_just_finished = False
+                 st.balloons()
+                 st.success("🎉 SÜRE DOLDU! Harikasın!")
+                 js_alert = """
+                    <script>
+                        if (navigator.vibrate) {
+                            navigator.vibrate([500, 200, 500, 200, 1000]);
+                        }
+                        var overlay = document.createElement('div');
+                        overlay.style.position = 'fixed';
+                        overlay.style.top = '0';
+                        overlay.style.left = '0';
+                        overlay.style.width = '100vw';
+                        overlay.style.height = '100vh';
+                        overlay.style.zIndex = '99999';
+                        overlay.style.pointerEvents = 'none';
+                        overlay.style.backgroundColor = 'rgba(233, 30, 99, 0.5)';
+                        overlay.style.animation = 'flashAnimation 1s infinite';
+                        document.body.appendChild(overlay);
+
+                        var style = document.createElement('style');
+                        style.innerHTML = `
+                            @keyframes flashAnimation {
+                                0% { background-color: rgba(233, 30, 99, 0.0); }
+                                50% { background-color: rgba(233, 30, 99, 0.6); }
+                                100% { background-color: rgba(233, 30, 99, 0.0); }
                             }
-                            var overlay = document.createElement('div');
-                            overlay.style.position = 'fixed';
-                            overlay.style.top = '0';
-                            overlay.style.left = '0';
-                            overlay.style.width = '100vw';
-                            overlay.style.height = '100vh';
-                            overlay.style.zIndex = '99999';
-                            overlay.style.pointerEvents = 'none';
-                            overlay.style.backgroundColor = 'rgba(233, 30, 99, 0.5)';
-                            overlay.style.animation = 'flashAnimation 1s infinite';
-                            document.body.appendChild(overlay);
+                        `;
+                        document.head.appendChild(style);
 
-                            var style = document.createElement('style');
-                            style.innerHTML = `
-                                @keyframes flashAnimation {
-                                    0% { background-color: rgba(233, 30, 99, 0.0); }
-                                    50% { background-color: rgba(233, 30, 99, 0.6); }
-                                    100% { background-color: rgba(233, 30, 99, 0.0); }
-                                }
-                            `;
-                            document.head.appendChild(style);
+                        setTimeout(() => {
+                            document.body.removeChild(overlay);
+                        }, 5000);
+                    </script>
+                 """
+                 st.markdown(js_alert, unsafe_allow_html=True)
+                 st.toast("⏰ SÜRE DOLDU!", icon="🚨")
 
-                            setTimeout(() => {
-                                document.body.removeChild(overlay);
-                            }, 5000);
-                        </script>
-                     """
-                     st.markdown(js_alert, unsafe_allow_html=True)
-                     st.toast("⏰ SÜRE DOLDU!", icon="🚨")
-                     
-                st.markdown(f"<div style='text-align: center; font-size: 80px; color: #D81B60;' class='timer-font'>{format_timer_display(remaining)}</div>", unsafe_allow_html=True)
-                
-            else:
-                # --- STANDARD MODE (Stopwatch) ---
-                elapsed = st.session_state.timer_accumulated + (current_time - st.session_state.timer_start_time) if st.session_state.timer_running else st.session_state.timer_accumulated
-                st.markdown(f"<div style='text-align: center; font-size: 80px; color: #D81B60;' class='timer-font'>{format_timer_display(elapsed)}</div>", unsafe_allow_html=True)
+            live_timer()
 
             if not is_reading_mode:
                 c_input1, c_input2, c_input3 = st.columns(3)
@@ -1054,8 +1063,18 @@ def main_app():
                         st.rerun()
                 else:
                     btn_text = "▶️ Başla" if st.session_state.timer_accumulated == 0 else "▶️ Devam Et"
-                    if remaining == 0 and (is_reading_mode or is_countdown_mode) and st.session_state.timer_accumulated > 0:
-                         pass # Completed, don't show Resume
+                    if (is_reading_mode or is_countdown_mode) and st.session_state.timer_accumulated > 0:
+                         if is_reading_mode:
+                             target_seconds = st.session_state.get("reading_duration", 15) * 60
+                         else:
+                             target_seconds = task.get("target_duration", 15) * 60
+                         if target_seconds - st.session_state.timer_accumulated <= 0:
+                             pass # Completed, don't show Resume
+                         else:
+                             if st.button(btn_text, type="primary", use_container_width=True):
+                                 st.session_state.timer_start_time = time.time()
+                                 st.session_state.timer_running = True
+                                 st.rerun()
                     else:
                         if st.button(btn_text, type="primary", use_container_width=True):
                             st.session_state.timer_start_time = time.time()
@@ -1066,7 +1085,8 @@ def main_app():
                 # Finish Logic
                 finish_label = "🏁 Bitir"
                 if is_reading_mode or is_countdown_mode: 
-                    if remaining == 0 and st.session_state.timer_accumulated > 0:
+                    _t_sec = st.session_state.get("reading_duration", 15) * 60 if is_reading_mode else task.get("target_duration", 15) * 60
+                    if _t_sec - st.session_state.timer_accumulated <= 0 and st.session_state.timer_accumulated > 0:
                         finish_label = "✅ SÜRE BİTTİ - KAYDET VE BİTİR"
                     elif is_reading_mode:
                         finish_label = "✅ Okumayı Bitir"
@@ -1120,7 +1140,6 @@ def main_app():
                  if "reading_duration" in st.session_state: del st.session_state.reading_duration
                  st.rerun()
 
-        if st.session_state.timer_running: time.sleep(1); st.rerun()
         return
 
     # --- ANA SAYFA ---
@@ -1861,27 +1880,38 @@ localElements.forEach(el => {{
                                     })
                                 
                                 if selected_topics:
-                                    def_d = t_dogru_sum
-                                    def_y = t_yanlis_sum
+                                    max_s = t_soru_sum
+                                    d_val = t_dogru_sum
+                                    y_val = t_yanlis_sum
+                                    b_val = max(0, max_s - (d_val + y_val))
+                                    
+                                    d_c1, d_c2, d_c3 = st.columns(3)
+                                    d_c1.text_input(f"{l_name} Toplam Doğru", value=str(d_val), disabled=True, key=f"tot_d_{l_name}")
+                                    d_c2.text_input(f"{l_name} Toplam Yanlış", value=str(y_val), disabled=True, key=f"tot_y_{l_name}")
+                                    d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Soru: {max_s} | Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
+                                    
+                                    dersler_payload[l_name] = {
+                                        "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": topic_items, "soru_sayisi": max_s
+                                    }
                                 else:
                                     def_d = max_s
                                     def_y = 0
                                     
-                                d_c1, d_c2, d_c3 = st.columns(3)
-                                d_val = d_c1.number_input(f"{l_name} Toplam Doğru", min_value=0, value=def_d, key=f"tot_d_{l_name}")
-                                y_val = d_c2.number_input(f"{l_name} Toplam Yanlış", min_value=0, value=def_y, key=f"tot_y_{l_name}")
-                                
-                                if d_val + y_val > max_s:
-                                    st.warning(f"Doğru ve Yanlış toplamı ({d_val + y_val}), soru sayısını ({max_s}) aşıyor!")
-                                    d_val = min(d_val, max_s)
-                                    y_val = min(y_val, max_s - d_val)
+                                    d_c1, d_c2, d_c3 = st.columns(3)
+                                    d_val = d_c1.number_input(f"{l_name} Toplam Doğru", min_value=0, value=def_d, key=f"tot_d_{l_name}")
+                                    y_val = d_c2.number_input(f"{l_name} Toplam Yanlış", min_value=0, value=def_y, key=f"tot_y_{l_name}")
                                     
-                                b_val = max(0, max_s - (d_val + y_val))
-                                d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
-                                
-                                dersler_payload[l_name] = {
-                                    "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": topic_items, "soru_sayisi": max_s
-                                }
+                                    if d_val + y_val > max_s:
+                                        st.warning(f"Doğru ve Yanlış toplamı ({d_val + y_val}), soru sayısını ({max_s}) aşıyor!")
+                                        d_val = min(d_val, max_s)
+                                        y_val = min(y_val, max_s - d_val)
+                                        
+                                    b_val = max(0, max_s - (d_val + y_val))
+                                    d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
+                                    
+                                    dersler_payload[l_name] = {
+                                        "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": topic_items, "soru_sayisi": max_s
+                                    }
                             else:
                                 d_c1, d_c2, d_c3 = st.columns(3)
                                 d_val = d_c1.number_input(f"{l_name} Doğru", min_value=0, value=max_s, key=f"fast_d_{l_name}")
@@ -1944,27 +1974,38 @@ localElements.forEach(el => {{
                                     })
                                 
                                 if selected_topics:
-                                    def_d = t_dogru_sum
-                                    def_y = t_yanlis_sum
+                                    max_s = t_soru_sum
+                                    d_val = t_dogru_sum
+                                    y_val = t_yanlis_sum
+                                    b_val = max(0, max_s - (d_val + y_val))
+                                    
+                                    d_c1, d_c2, d_c3 = st.columns(3)
+                                    d_c1.text_input(f"{l_name} Toplam Doğru", value=str(d_val), disabled=True, key=f"tot_d_{l_name}")
+                                    d_c2.text_input(f"{l_name} Toplam Yanlış", value=str(y_val), disabled=True, key=f"tot_y_{l_name}")
+                                    d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Soru: {max_s} | Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
+                                    
+                                    dersler_payload[l_name] = {
+                                        "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": topic_items, "soru_sayisi": max_s
+                                    }
                                 else:
                                     def_d = max_s
                                     def_y = 0
                                     
-                                d_c1, d_c2, d_c3 = st.columns(3)
-                                d_val = d_c1.number_input(f"{l_name} Toplam Doğru", min_value=0, value=def_d, key=f"tot_d_{l_name}")
-                                y_val = d_c2.number_input(f"{l_name} Toplam Yanlış", min_value=0, value=def_y, key=f"tot_y_{l_name}")
-                                
-                                if d_val + y_val > max_s:
-                                    st.warning(f"Doğru ve Yanlış toplamı ({d_val + y_val}), soru sayısını ({max_s}) aşıyor!")
-                                    d_val = min(d_val, max_s)
-                                    y_val = min(y_val, max_s - d_val)
+                                    d_c1, d_c2, d_c3 = st.columns(3)
+                                    d_val = d_c1.number_input(f"{l_name} Toplam Doğru", min_value=0, value=def_d, key=f"tot_d_{l_name}")
+                                    y_val = d_c2.number_input(f"{l_name} Toplam Yanlış", min_value=0, value=def_y, key=f"tot_y_{l_name}")
                                     
-                                b_val = max(0, max_s - (d_val + y_val))
-                                d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
-                                
-                                dersler_payload[l_name] = {
-                                    "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": topic_items, "soru_sayisi": max_s
-                                }
+                                    if d_val + y_val > max_s:
+                                        st.warning(f"Doğru ve Yanlış toplamı ({d_val + y_val}), soru sayısını ({max_s}) aşıyor!")
+                                        d_val = min(d_val, max_s)
+                                        y_val = min(y_val, max_s - d_val)
+                                        
+                                    b_val = max(0, max_s - (d_val + y_val))
+                                    d_c3.markdown(f"<div style='margin-top:28px; font-weight:700; color:#880E4F;'>Boş: {b_val} | Net: {lm.calculate_net(d_val, y_val):.2f}</div>", unsafe_allow_html=True)
+                                    
+                                    dersler_payload[l_name] = {
+                                        "dogru": d_val, "yanlis": y_val, "bos": b_val, "konular": topic_items, "soru_sayisi": max_s
+                                    }
                             else:
                                 d_c1, d_c2, d_c3 = st.columns(3)
                                 d_val = d_c1.number_input(f"{l_name} Doğru", min_value=0, value=max_s, key=f"fast_d_{l_name}")
@@ -1990,7 +2031,7 @@ localElements.forEach(el => {{
                 calc_toplam_net = round(calc_sozel_net + calc_sayisal_net, 2)
                 
                 net_dict = {l: lm.calculate_net(dersler_payload[l]["dogru"], dersler_payload[l]["yanlis"]) for l in lm.LGS_LESSONS.keys()}
-                calc_puan = lm.calculate_lgs_score(net_dict)
+                calc_puan = lm.calculate_lgs_score(net_dict, dersler_payload)
                 
                 st.markdown(f"""
                 <div style='background: #FFF0F5; border: 2px solid #F48FB1; border-radius: 14px; padding: 14px 20px; text-align: center; margin-bottom: 15px;'>
