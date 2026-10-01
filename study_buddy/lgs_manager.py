@@ -415,7 +415,7 @@ def create_exam_record(ogrenci, deneme_adi, yayin, tarih, sure_dk, zorluk, notla
         ldata = dersler_data.get(lesson_name, {})
         d = int(ldata.get("dogru", 0))
         y = int(ldata.get("yanlis", 0))
-        max_soru = lesson_info["soru_sayisi"]
+        max_soru = int(ldata.get("soru_sayisi", lesson_info["soru_sayisi"]))
         b = int(ldata.get("bos", max(0, max_soru - (d + y))))
         toplam_cozulen = d + y + b
         
