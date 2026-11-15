@@ -794,6 +794,49 @@ footer {
     /* Blue for files */
 }
 
+/* --- İkili Video (Konu + Özet) Stilleri --- */
+.video-dual-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+    margin-bottom: 12px;
+}
+
+.video-dual-row .material-link {
+    margin-bottom: 0;
+}
+
+.video-dual-row .main-video {
+    flex: 1;
+}
+
+.video-dual-row .summary-video {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 10px 14px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    font-weight: 500;
+}
+
+.video-dual-row .summary-video i {
+    color: var(--gold);
+    margin-right: 6px;
+    font-size: 0.95rem;
+}
+
+.video-dual-row .summary-video:hover {
+    background: rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.5);
+    transform: translateY(-2px);
+}
+
+.video-dual-row .main-video:hover {
+    transform: translateY(-2px);
+}
+
 /* --- Accordion / Açılır Menü Stilleri --- */
 
 .course-title {
