@@ -794,47 +794,138 @@ footer {
     /* Blue for files */
 }
 
-/* --- İkili Video (Konu + Özet) Stilleri --- */
-.video-dual-row {
+/* --- Video Kartı & İkili Buton (Konu Başlığı + Ders Anlatımı + Özet) Stilleri --- */
+.video-topic-card {
     display: flex;
-    gap: 8px;
-    align-items: stretch;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 12px;
+    background: rgba(18, 18, 18, 0.5);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
     margin-bottom: 12px;
+    transition: var(--transition);
+    gap: 12px;
 }
 
-.video-dual-row .material-link {
-    margin-bottom: 0;
+.video-topic-card:hover {
+    background: rgba(139, 28, 49, 0.08);
+    border-color: rgba(139, 28, 49, 0.2);
 }
 
-.video-dual-row .main-video {
+.video-topic-card.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.video-topic-title {
+    font-size: 0.93rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
     flex: 1;
-}
-
-.video-dual-row .summary-video {
-    flex-shrink: 0;
+    min-width: 0;
     white-space: nowrap;
-    padding: 10px 14px;
-    background: rgba(239, 68, 68, 0.08);
-    border: 1px solid rgba(239, 68, 68, 0.25);
-    color: var(--text-primary);
-    font-size: 0.88rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.video-topic-title i {
+    color: #ef4444;
+    margin-right: 10px;
+    font-size: 1.05rem;
+    flex-shrink: 0;
+}
+
+.video-topic-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.video-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 11px;
+    border-radius: 6px;
+    font-size: 0.82rem;
     font-weight: 500;
+    transition: var(--transition);
+    text-decoration: none;
+    white-space: nowrap;
 }
 
-.video-dual-row .summary-video i {
+.video-btn i {
+    font-size: 0.88rem;
+}
+
+/* Ders Anlatımı Butonu (Kırmızı Ton) */
+.video-btn.btn-lecture {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.28);
+    color: #fca5a5;
+}
+
+.video-btn.btn-lecture i {
+    color: #ef4444;
+}
+
+.video-btn.btn-lecture:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: #ef4444;
+    color: #ffffff;
+    transform: translateY(-2px);
+}
+
+/* Özet Butonu (Altın / Sarı Ton) */
+.video-btn.btn-summary {
+    background: rgba(234, 179, 8, 0.12);
+    border: 1px solid rgba(234, 179, 8, 0.28);
+    color: #fde047;
+}
+
+.video-btn.btn-summary i {
     color: var(--gold);
-    margin-right: 6px;
-    font-size: 0.95rem;
 }
 
-.video-dual-row .summary-video:hover {
-    background: rgba(239, 68, 68, 0.18);
-    border-color: rgba(239, 68, 68, 0.5);
+.video-btn.btn-summary:hover {
+    background: rgba(234, 179, 8, 0.25);
+    border-color: #eab308;
+    color: #ffffff;
     transform: translateY(-2px);
 }
 
-.video-dual-row .main-video:hover {
-    transform: translateY(-2px);
+.video-badge-pending {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+}
+
+@media (max-width: 576px) {
+    .video-topic-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 10px 12px;
+    }
+    .video-topic-title {
+        white-space: normal;
+        width: 100%;
+    }
+    .video-topic-actions {
+        width: 100%;
+        display: flex;
+        gap: 8px;
+    }
+    .video-topic-actions .video-btn {
+        flex: 1;
+        justify-content: center;
+    }
 }
 
 /* --- Accordion / Açılır Menü Stilleri --- */
