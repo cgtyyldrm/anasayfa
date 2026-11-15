@@ -796,11 +796,21 @@ def admin_add_task_fragment(dashboard_date, active_student_filter):
         ders_inp = c2.selectbox("Ders", ders_list)
         
         if ders_inp in lm.LGS_CURRICULUM:
-            secilen_konu = c2.selectbox("Konu Kılavuzu", get_topic_options(ders_inp), key="new_task_secilen")
-            if secilen_konu == "Özel (Kendin Yaz)" or secilen_konu.startswith("---"):
-                konu_inp = c2.text_input("Konu (İsteğe Bağlı)")
+            secilen_konular = c2.multiselect(
+                "Konu(lar) Seçin (Birden fazla seçilebilir)",
+                get_multiselect_topic_options(ders_inp),
+                key="new_task_secilen_multi",
+                placeholder="Konuları seçin..."
+            )
+            ozel_konu = c2.text_input("Özel / Ekstra Konu (İsteğe Bağlı)")
+            if secilen_konular:
+                konu_inp = " + ".join(secilen_konular)
+                if ozel_konu:
+                    konu_inp += f" ({ozel_konu})"
+            elif ozel_konu:
+                konu_inp = ozel_konu
             else:
-                konu_inp = secilen_konu
+                konu_inp = ""
         else:
             konu_inp = c2.text_input("Konu (İsteğe Bağlı)")
             
@@ -817,11 +827,21 @@ def student_free_study_fragment(today, user):
         fs_ders = st.selectbox("Hangi Derse Çalışacaksın?", fs_ders_list, key="fs_ders")
         
         if fs_ders in lm.LGS_CURRICULUM:
-            fs_secilen_konu = st.selectbox("Konu Kılavuzu", get_topic_options(fs_ders), key="fs_secilen")
-            if fs_secilen_konu == "Özel (Kendin Yaz)" or fs_secilen_konu.startswith("---"):
-                fs_konu_inp = st.text_input("Konu (İsteğe Bağlı)", placeholder="Örn: Kesirler Test Çözümü", key="fs_konu_input")
+            fs_secilen_konular = st.multiselect(
+                "Konu(lar) Seçin (Birden fazla seçebilirsiniz)",
+                get_multiselect_topic_options(fs_ders),
+                key="fs_secilen_multi",
+                placeholder="Örn: Üslü İfadeler, Kareköklü İfadeler..."
+            )
+            fs_ozel_konu = st.text_input("Özel / Ekstra Konu (İsteğe Bağlı)", placeholder="Örn: Soru Bankası Test 1-3", key="fs_konu_input")
+            if fs_secilen_konular:
+                fs_konu_inp = " + ".join(fs_secilen_konular)
+                if fs_ozel_konu:
+                    fs_konu_inp += f" ({fs_ozel_konu})"
+            elif fs_ozel_konu:
+                fs_konu_inp = fs_ozel_konu
             else:
-                fs_konu_inp = fs_secilen_konu
+                fs_konu_inp = ""
         else:
             fs_konu_inp = st.text_input("Konu (İsteğe Bağlı)", placeholder="Örn: Kesirler Test Çözümü", key="fs_konu_input_2")
             
@@ -849,11 +869,21 @@ def student_countdown_fragment():
         cd_ders = st.selectbox("Hangi Ders?", cd_ders_list, key="cd_ders")
         
         if cd_ders in lm.LGS_CURRICULUM:
-            cd_secilen_konu = st.selectbox("Konu Kılavuzu", get_topic_options(cd_ders), key="cd_secilen")
-            if cd_secilen_konu == "Özel (Kendin Yaz)" or cd_secilen_konu.startswith("---"):
-                cd_konu_inp = st.text_input("Konu (Örn: Deneme Sınavı)", placeholder="Deneme Sınavı", key="cd_konu_input")
+            cd_secilen_konular = st.multiselect(
+                "Konu(lar) Seçin (Birden fazla seçebilirsiniz)",
+                get_multiselect_topic_options(cd_ders),
+                key="cd_secilen_multi",
+                placeholder="Örn: Üslü İfadeler, Kareköklü İfadeler..."
+            )
+            cd_ozel_konu = st.text_input("Özel / Ekstra Konu (İsteğe Bağlı)", placeholder="Örn: Deneme Sınavı veya Test No", key="cd_konu_input")
+            if cd_secilen_konular:
+                cd_konu_inp = " + ".join(cd_secilen_konular)
+                if cd_ozel_konu:
+                    cd_konu_inp += f" ({cd_ozel_konu})"
+            elif cd_ozel_konu:
+                cd_konu_inp = cd_ozel_konu
             else:
-                cd_konu_inp = cd_secilen_konu
+                cd_konu_inp = ""
         else:
             cd_konu_inp = st.text_input("Konu (Örn: Deneme Sınavı)", placeholder="Deneme Sınavı", key="cd_konu_input_2")
             
@@ -882,6 +912,18 @@ def student_countdown_fragment():
                 "notlar": cd_kaynak_inp
             }
             st.rerun()
+
+def get_multiselect_topic_options(lesson):
+    if lesson not in lm.LGS_CURRICULUM:
+        return []
+    curriculum = lm.LGS_CURRICULUM[lesson]
+    main_topics = []
+    for topic in curriculum:
+        if ":" in topic:
+            main_t = topic.split(":")[0].strip() + " (Genel)"
+            if main_t not in main_topics:
+                main_topics.append(main_t)
+    return ["Karma (Tüm Konular)"] + main_topics + curriculum
 
 def get_topic_options(lesson):
     if lesson not in lm.LGS_CURRICULUM:
